@@ -24,10 +24,10 @@ const Footer = () => (
           className="w-50 sm:w-50 "
         />
         <p className="text-gray-300 text-sm sm:text-base leading-relaxed" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
-          <strong className="text-[#629F3F]">TIKI TAKA TUNISIE</strong> est une expérience signée <strong className="text-[#629F3F]">PASSIONE 12</strong>,
+          <strong className="text-[#629F3F]">TIKI TAKA TUNISIE</strong> est une initiative unique portée par <strong className="text-[#629F3F]">PASSIONE 12</strong>,
           dédiée aux passionnés de football tunisien.
           <br />
-          Ce n’est que le début… d’autres projets passionnants arrivent très bientôt !
+          Et ce n’est qu’un début… D’autres projets tout aussi passionnants arrivent très bientôt !
         </p>
       </div>
 

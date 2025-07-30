@@ -72,7 +72,7 @@ const defaultPlayers = [
   { name: 'DEF 5', match: 'VS Club Africain', jerseySrc: 'jercy1/marsa.webp', pos: 'mid' },
   { name: 'MID 1', match: 'VS Club Africain', jerseySrc: 'jercy1/st.webp', pos: 'mid' },
   { name: 'MID 2', match: 'VS Club Africain', jerseySrc: 'jercy1/beja.webp', pos: 'mid' },
-  { name: 'MID 3', match: 'VS Club Africain', jerseySrc: 'jercy1/omran.webp', pos: 'mid' },
+  { name: 'MID 3', match: 'VS Club Africain', jerseySrc: 'jercy1/omran.webp', pos: 'att' },
   { name: 'ATT 1', match: 'VS Club Africain', jerseySrc: 'jercy1/css.webp', pos: 'att' },
   { name: 'ATT 2', match: 'VS Club Africain', jerseySrc: 'jercy1/as gabes.webp', pos: 'att' },
 ];

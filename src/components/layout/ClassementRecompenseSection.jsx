@@ -154,11 +154,11 @@ const ClassementRecompenseSection = () => {
                   <button
                     type="submit"
                     form=""
-                    className="bg-[#629F3F] hover:bg-[#4e7e32] text-white font-bold uppercase px-4 sm:px-8 py-2 rounded-full text-xs sm:text-base transition-all w-full pointer-events-auto"
-                    style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif'}}
+                    className="bg-gradient-to-r from-[#629F3F] to-[#4e7e32] hover:from-[#4e7e32] hover:to-[#3d5f28] text-white font-bold uppercase px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg transition-all w-full pointer-events-auto shadow-2xl transform hover:scale-105 border-2 border-[#629F3F]/30"
+                    style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif', boxShadow: '0 8px 32px 0 rgba(98,159,63,0.3)'}}
                     onClick={() => { setSelectedJournee(tempJournee); setModalOpen(false); }}
                   >
-                    Confirmer
+                    ✓ Confirmer
                   </button>
                 </div>
               </div>

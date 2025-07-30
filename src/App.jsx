@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 
 import Header from './components/layout/Header';
@@ -15,10 +16,15 @@ import TransfersHistorySection from './components/layout/TransfersHistorySection
 import PartnersSection from './components/layout/PartnersSection';
 import EditProfileModal from './components/modals/EditProfileModal';
 import Footer from './components/layout/Footer';
+import SelectionneJoueur from './components/layout/SelectionneJoueur';
+import Login from './components/layout/login';
+import Signup from './components/layout/signup';
 
 function App() {
   const [pointsModalOpen, setPointsModalOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [hasTeam, setHasTeam] = useState(false);
 
   // Mock user data (replace with real user data as needed)
   const user = {
@@ -33,7 +39,8 @@ function App() {
     // Optionally show a success message
   };
 
-  return (
+  // Main dashboard component
+  const Dashboard = () => (
     <div className="min-h-screen bg-black text-white">
       <Header onProfileClick={() => setEditProfileOpen(true)} />
       <EditProfileModal
@@ -44,7 +51,6 @@ function App() {
       />
       <DeadlineSection />
       <main className="w-full max-w-[1350px] mx-auto px-2 sm:px-4 md:px-6 flex flex-col gap-[20px]">
-        {/* Desktop Layout (now only for lg and up) */}
         <div className="hidden lg:flex flex-row gap-[20px] w-full">
           <div className="flex-1 flex flex-col gap-[20px]">
             <div className="mt-8"><StatsSection /></div>
@@ -55,10 +61,10 @@ function App() {
             <LegendSection />
             {pointsModalOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in-up">
-                <div className="bg-gradient-to-b from-[#232e1a] to-[#181818] rounded-2xl shadow-2xl w-full max-w-md mx-2 p-0 relative border-2 border-[#61B12C] flex flex-col" style={{boxShadow:'0 8px 32px 0 rgba(98,177,44,0.18)'}}>
+                <div className="bg-gradient-to-b from-[#232e1a] to-[#181818] rounded-2xl shadow-2xl w-full max-w-md mx-2 p-0 relative border-2 border-[#61B12C] flex flex-col" style={{ boxShadow: '0 8px 32px 0 rgba(98,177,44,0.18)' }}>
                   {/* Modal Header */}
                   <div className="flex items-center justify-between px-6 py-4 border-b border-[#2d4a1e] rounded-t-2xl bg-[#232e1a]">
-                    <h2 className="text-white text-lg xs:text-xl font-extrabold uppercase tracking-wide" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif', letterSpacing:'0.04em'}}>Comment marquer des points</h2>
+                    <h2 className="text-white text-lg xs:text-xl font-extrabold uppercase tracking-wide" style={{ fontFamily: 'Bebas Neue, Gotham SSM, sans-serif', letterSpacing: '0.04em' }}>Comment marquer des points</h2>
                     <button
                       className="text-white bg-[#61B12C] hover:bg-[#4e7e32] rounded-full w-8 h-8 flex items-center justify-center font-bold text-xl shadow focus:outline-none focus:ring-2 focus:ring-[#61B12C]"
                       onClick={() => setPointsModalOpen(false)}
@@ -67,7 +73,7 @@ function App() {
                       ×
                     </button>
                   </div>
-                  {/* Modal Content */}
+
                   <div className="overflow-y-auto max-h-[70vh] px-2 xs:px-4 py-4 bg-[#181818] rounded-b-2xl">
                     <PointsSection />
                   </div>
@@ -83,7 +89,7 @@ function App() {
             <ClassementRecompenseSection />
           </div>
         </div>
-        {/* Mobile/Tablet Layout (applies to <lg) */}
+
         <div className="flex flex-col lg:hidden gap-[20px] w-full">
           <div className="mt-8"><CarouselSection /></div>
           <div className="mt-8"><StatsSection /></div>
@@ -104,21 +110,39 @@ function App() {
                 </button>
                 <PointsSection />
               </div>
-          </div>
+            </div>
           )}
           <MatchsSection />
           <TransfersHistorySection />
           <ClassementRecompenseSection />
-        
         </div>
         <div>
-        <PartnersSection />
+          <PartnersSection />
         </div>
       </main>
-      <Footer />
     </div>
+  );
+
+  return (
+    <Router>
+      <div className="min-h-screen bg-black text-white">
+        <Routes>
+          {/* Authentication Routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          
+          {/* Team Selection Route */}
+          <Route path="/selectionne-joueur" element={<SelectionneJoueur />} />
+          
+          {/* Main Dashboard Route - Protected */}
+          <Route path="/dashboard" element={<Dashboard />} />
+          
+          {/* Default redirect to login */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
-export default App;
-
+export default App; 

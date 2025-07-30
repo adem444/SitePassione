@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { ChevronDown, Calendar, X } from 'lucide-react';
+import { ChevronDown, Calendar, X, Settings, Users, Crown, Copy, UserMinus } from 'lucide-react';
 
 const LeaguesModal = ({ open, onClose }) => {
   const [activeTab, setActiveTab] = useState('ligues');
   const [selectedLeague, setSelectedLeague] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
-  const [joinModalTab, setJoinModalTab] = useState('private');
   const [selectedJournee, setSelectedJournee] = useState('all');
   const [showJourneeModal, setShowJourneeModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -18,47 +17,44 @@ const LeaguesModal = ({ open, onClose }) => {
   const [errorMessage, setErrorMessage] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
-  const [createFormData, setCreateFormData] = useState({ name: '', type: 'public' });
+  const [createFormData, setCreateFormData] = useState({ name: '' });
   const [isPrivateLeagueCreated, setIsPrivateLeagueCreated] = useState(false);
+  const [showLeagueSettings, setShowLeagueSettings] = useState(false);
+  const [showRoomCode, setShowRoomCode] = useState(false);
   const modalRef = useRef(null);
   const closeButtonRef = useRef(null);
 
-  // Mock data
+  // Mock data - only private leagues
   const myLeagues = [
     {
       id: 1,
       name: 'Ligue des Champions',
       manager: 'Ahmed Ben Ali',
-      type: 'public',
-      myRank: 3
+      type: 'private',
+      myRank: 3,
+      isAdmin: false,
+      roomCode: 'ABC123',
+      members: [
+        { id: 1, name: 'Mohamed Trabelsi', rank: 1, isAdmin: true },
+        { id: 2, name: 'Ahmed Ben Ali', rank: 3, isAdmin: false },
+        { id: 3, name: 'Sami Khelifi', rank: 2, isAdmin: false },
+        { id: 4, name: 'Youssef Mansouri', rank: 4, isAdmin: false },
+        { id: 5, name: 'Karim Zidane', rank: 5, isAdmin: false }
+      ]
     },
     {
       id: 2,
       name: 'Ligue Amicale',
       manager: 'Mohamed Trabelsi',
       type: 'private',
-      myRank: 1
-    }
-  ];
-
-  const availablePublicLeagues = [
-    {
-      id: 3,
-      name: 'Ligue Pro',
-      manager: 'Sami Khelifi',
-      type: 'public'
-    },
-    {
-      id: 4,
-      name: 'Champions League',
-      manager: 'Youssef Mansouri',
-      type: 'public'
-    },
-    {
-      id: 5,
-      name: 'Ligue Amicale',
-      manager: 'Karim Zidane',
-      type: 'public'
+      myRank: 1,
+      isAdmin: true,
+      roomCode: 'XYZ789',
+      members: [
+        { id: 1, name: 'Mohamed Trabelsi', rank: 1, isAdmin: true },
+        { id: 2, name: 'Ahmed Ben Ali', rank: 2, isAdmin: false },
+        { id: 3, name: 'Sami Khelifi', rank: 3, isAdmin: false }
+      ]
     }
   ];
 
@@ -123,19 +119,14 @@ const LeaguesModal = ({ open, onClose }) => {
       return;
     }
 
-    if (createFormData.type === 'private') {
-      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-      setPrivateCode(code);
-      setSuccessMessage(`Ta ligue privée a été créée. Code d'invitation: ${code}`);
-      setIsPrivateLeagueCreated(true);
-    } else {
-      setSuccessMessage('Félicitations! Ta ligue publique a été créée avec succès. Elle sera visible pour tous dans la liste des ligues publiques.');
-      setIsPrivateLeagueCreated(false);
-    }
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    setPrivateCode(code);
+    setSuccessMessage(`Ta ligue privée a été créée. Code d'invitation: ${code}`);
+    setIsPrivateLeagueCreated(true);
     
     setShowCreateModal(false);
     setShowSuccessModal(true);
-    setCreateFormData({ name: '', type: 'public' });
+    setCreateFormData({ name: '' });
   };
 
   const handleJoinPrivateLeague = () => {
@@ -152,7 +143,7 @@ const LeaguesModal = ({ open, onClose }) => {
 
     // Simulate API call
     setTimeout(() => {
-      if (privateCode === 'ABC123') {
+      if (privateCode === 'ABC123' || privateCode === 'XYZ789') {
         setSuccessMessage('Vous avez rejoint la ligue avec succès!');
         setShowJoinModal(false);
         setShowSuccessModal(true);
@@ -162,13 +153,6 @@ const LeaguesModal = ({ open, onClose }) => {
         showError('Code d\'invitation invalide');
       }
     }, 1000);
-  };
-
-  const handleJoinPublicLeague = (leagueId) => {
-    setSuccessMessage('Vous avez rejoint la ligue publique avec succès!');
-    setShowJoinModal(false);
-    setShowSuccessModal(true);
-    setIsPrivateLeagueCreated(false);
   };
 
   const showError = (message) => {
@@ -182,6 +166,10 @@ const LeaguesModal = ({ open, onClose }) => {
     setShowSuccessModal(true);
   };
 
+  const copyToClipboardSilent = (text) => {
+    navigator.clipboard.writeText(text);
+  };
+
   const handleLeaveLeague = (leagueId) => {
     setConfirmAction({
       type: 'leave',
@@ -193,20 +181,52 @@ const LeaguesModal = ({ open, onClose }) => {
     setShowConfirmModal(true);
   };
 
+  const handleRemoveMember = (memberId, memberName) => {
+    setConfirmAction({
+      type: 'remove',
+      memberId,
+      memberName,
+      message: `Êtes-vous sûr de vouloir retirer ${memberName} de la ligue?`,
+      confirmText: 'Retirer',
+      cancelText: 'Annuler'
+    });
+    setShowConfirmModal(true);
+  };
+
+  const handleCloseLeague = (leagueId, leagueName) => {
+    setConfirmAction({
+      type: 'close',
+      leagueId,
+      leagueName,
+      message: `Êtes-vous sûr de vouloir fermer la ligue "${leagueName}"? Cette action est irréversible.`,
+      confirmText: 'Fermer la ligue',
+      cancelText: 'Annuler'
+    });
+    setShowConfirmModal(true);
+  };
+
   const confirmActionHandler = () => {
     if (confirmAction.type === 'leave') {
       setSuccessMessage('Vous avez quitté la ligue avec succès');
       setShowSuccessModal(true);
       setSelectedLeague(null);
+    } else if (confirmAction.type === 'remove') {
+      setSuccessMessage(`${confirmAction.memberName} a été retiré de la ligue`);
+      setShowSuccessModal(true);
+      setShowLeagueSettings(false);
+    } else if (confirmAction.type === 'close') {
+      setSuccessMessage('La ligue a été fermée avec succès');
+      setShowSuccessModal(true);
+      setSelectedLeague(null);
+      setShowLeagueSettings(false);
     }
     setShowConfirmModal(false);
     setConfirmAction(null);
   };
 
-  const filteredPublicLeagues = availablePublicLeagues.filter(league =>
-    league.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    league.manager.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const getCurrentLeague = () => {
+    return myLeagues.find(league => league.id === selectedLeague?.id);
+  };
 
   return (
     <>
@@ -258,7 +278,7 @@ const LeaguesModal = ({ open, onClose }) => {
                   : 'text-white hover:text-[#629F3F]'
               }`}
               style={{ fontFamily: 'Bebas Neue, Gotham SSM, sans-serif' }}
-              onClick={() => { setActiveTab('ligues'); setSelectedLeague(null); }}
+              onClick={() => { setActiveTab('ligues'); setSelectedLeague(null); setShowLeagueSettings(false); }}
             >
               Mes Ligues
             </button>
@@ -282,7 +302,7 @@ const LeaguesModal = ({ open, onClose }) => {
                 {!selectedLeague ? (
                   <>
                     <div className="text-white text-lg font-bold mb-4" style={{ fontFamily: 'Bebas Neue, Gotham SSM, sans-serif' }}>
-                      Mes Ligues Actives
+                      Mes Ligues Privées
                     </div>
                     
                     {/* League Cards */}
@@ -294,38 +314,56 @@ const LeaguesModal = ({ open, onClose }) => {
                           style={borderStyle}
                           onClick={() => setSelectedLeague(league)}
                         >
-                          <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-start justify-between mb-3">
                             <div className="flex-1">
-                              <h3 className="text-white font-bold text-lg mb-1" style={{ fontFamily: 'Bebas Neue, Gotham SSM, sans-serif' }}>
+                              <h3 className="text-white font-bold text-lg mb-2" style={{ fontFamily: 'Bebas Neue, Gotham SSM, sans-serif' }}>
                                 {league.name}
                               </h3>
-                              <p className="text-gray-300 text-sm">
-                                Manager: <span className="text-[#629F3F] font-bold">{league.manager}</span>
-                              </p>
+                              <div className="space-y-1">
+                                <p className="text-gray-300 text-sm">
+                                  Manager: <span className="text-[#629F3F] font-bold">{league.manager}</span>
+                                </p>
+                                <p className="text-[#629F3F] font-bold text-sm">
+                                  Mon Classement: {league.myRank}ème
+                                </p>
+                              </div>
                             </div>
                             <div className="flex flex-col items-end gap-2">
-                              <span className={`text-xs font-bold px-2 py-1 rounded ${
-                                league.type === 'public' 
-                                  ? 'text-green-400 bg-green-900/20' 
-                                  : 'text-yellow-400 bg-yellow-900/20'
-                              }`}>
-                                {league.type === 'public' ? 'PUBLIC' : 'PRIVÉ'}
-                              </span>
-                              <span className="text-[#629F3F] font-bold text-sm">
-                                Mon Classement: {league.myRank}ème
-                              </span>
+                              {league.isAdmin ? (
+                                <span className="text-[#629F3F] text-xs font-bold px-3 py-1 rounded-full bg-[#629F3F]/20 border border-[#629F3F] shadow-sm">
+                                  ADMIN
+                                </span>
+                              ) : (
+                                <span className="text-gray-400 text-xs font-bold px-3 py-1 rounded-full bg-gray-800/50 border border-gray-600">
+                                  MEMBRE
+                                </span>
+                              )}
                             </div>
                           </div>
-                          <div className="flex items-center justify-end">
-                            <button 
-                              className="text-red-400 hover:text-red-300 text-sm font-bold transition-colors duration-200 px-3 py-1 rounded hover:bg-red-900/20"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleLeaveLeague(league.id);
-                              }}
-                            >
-                              Quitter
-                            </button>
+                          
+                          {/* Action Buttons */}
+                          <div className="flex items-center justify-between pt-3 border-t border-[#2a2a2a]">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-400 text-xs">
+                                {league.members.length} membres
+                              </span>
+                            </div>
+                            {!league.isAdmin && (
+                              <button 
+                                className="text-red-400 hover:text-red-300 text-sm font-bold transition-colors duration-200 px-3 py-1 rounded hover:bg-red-900/20"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleLeaveLeague(league.id);
+                                }}
+                              >
+                                Quitter
+                              </button>
+                            )}
+                            {league.isAdmin && (
+                              <span className="text-[#629F3F] text-xs font-bold px-3 py-1 rounded bg-[#629F3F]/10 border border-[#629F3F]/30">
+                                Propriétaire
+                              </span>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -336,15 +374,105 @@ const LeaguesModal = ({ open, onClose }) => {
                     {/* League Details View */}
                     <div className="flex items-center justify-between mb-4">
                       <button 
-                        onClick={() => setSelectedLeague(null)}
+                        onClick={() => { setSelectedLeague(null); setShowLeagueSettings(false); }}
                         className="text-[#629F3F] hover:text-[#4a7a2f] font-bold flex items-center gap-2 transition-colors duration-200"
                       >
                         ← Retour
                       </button>
-                      <h3 className="text-white font-bold text-xl" style={{ fontFamily: 'Bebas Neue, Gotham SSM, sans-serif' }}>
-                        {selectedLeague.name}
-                      </h3>
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-white font-bold text-xl" style={{ fontFamily: 'Bebas Neue, Gotham SSM, sans-serif' }}>
+                          {selectedLeague.name}
+                        </h3>
+                        {getCurrentLeague()?.isAdmin && (
+                          <button
+                            onClick={() => setShowLeagueSettings(!showLeagueSettings)}
+                            className="text-[#629F3F] hover:text-[#4a7a2f] p-2 rounded-full hover:bg-[#629F3F]/10 transition-colors duration-200"
+                            title="Paramètres de la ligue"
+                          >
+                            <Settings size={20} />
+                          </button>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Admin Settings Panel */}
+                    {showLeagueSettings && getCurrentLeague()?.isAdmin && (
+                      <div className="mb-6 p-4 bg-[#232323] rounded-lg border border-[#629F3F]">
+                        <h4 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+                          <Crown size={20} className="text-[#629F3F]" />
+                          Paramètres Admin
+                        </h4>
+                        
+                        {/* Room Code Section */}
+                        <div className="mb-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-white font-bold">Code d'accès:</span>
+                            <button
+                              onClick={() => setShowRoomCode(!showRoomCode)}
+                              className="text-[#629F3F] hover:text-[#4a7a2f] text-sm font-bold transition-colors duration-200"
+                            >
+                              {showRoomCode ? 'Masquer' : 'Afficher'}
+                            </button>
+                          </div>
+                          {showRoomCode && (
+                            <div className="bg-[#181818] border border-[#629F3F] rounded-lg p-3 flex items-center justify-between">
+                              <span className="text-[#629F3F] font-bold text-lg tracking-wider font-mono">
+                                {getCurrentLeague()?.roomCode}
+                              </span>
+                              <button
+                                onClick={() => copyToClipboardSilent(getCurrentLeague()?.roomCode)}
+                                className="text-[#629F3F] hover:text-[#4a7a2f] transition-colors duration-200"
+                                title="Copier le code"
+                              >
+                                <Copy size={18} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Members Management */}
+                        <div className="mb-4">
+                          <h5 className="text-white font-bold mb-3 flex items-center gap-2">
+                            <Users size={18} />
+                            Membres ({getCurrentLeague()?.members.length})
+                          </h5>
+                          <div className="space-y-2 max-h-40 overflow-y-auto">
+                            {getCurrentLeague()?.members.map((member) => (
+                              <div key={member.id} className="flex items-center justify-between p-2 bg-[#181818] rounded">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-white font-bold">{member.name}</span>
+                                  {member.isAdmin && (
+                                    <span className="text-[#629F3F] text-xs font-bold px-2 py-1 rounded bg-[#629F3F]/20">
+                                      ADMIN
+                                    </span>
+                                  )}
+                                  <span className="text-gray-400 text-sm">#{member.rank}</span>
+                                </div>
+                                {!member.isAdmin && (
+                                  <button
+                                    onClick={() => handleRemoveMember(member.id, member.name)}
+                                    className="text-red-400 hover:text-red-300 transition-colors duration-200"
+                                    title="Retirer le membre"
+                                  >
+                                    <UserMinus size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Close League */}
+                        <div className="pt-3 border-t border-[#2a2a2a]">
+                          <button
+                            onClick={() => handleCloseLeague(selectedLeague.id, selectedLeague.name)}
+                            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200"
+                          >
+                            Fermer la Ligue
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Filter by Journée */}
                     <div className="mb-4">
@@ -417,7 +545,7 @@ const LeaguesModal = ({ open, onClose }) => {
                           Créer une Ligue
                         </h3>
                         <p className="text-gray-300 text-sm">
-                          Créez votre propre ligue et invitez vos amis
+                          Créez votre propre ligue privée et invitez vos amis
                         </p>
                       </div>
                     </div>
@@ -437,7 +565,7 @@ const LeaguesModal = ({ open, onClose }) => {
                           Rejoindre une Ligue
                         </h3>
                         <p className="text-gray-300 text-sm">
-                          Trouvez et rejoignez des ligues existantes
+                          Rejoignez une ligue privée avec un code d'invitation
                         </p>
                       </div>
                     </div>
@@ -550,7 +678,7 @@ const LeaguesModal = ({ open, onClose }) => {
           <div className="bg-[#181818] rounded-t-2xl sm:rounded-2xl shadow-2xl border border-[#629F3F] w-full max-w-full sm:max-w-[90vw] md:max-w-[85vw] lg:max-w-md xl:max-w-md mx-2 sm:mx-0">
             <div className="flex items-center justify-between px-4 sm:px-6 py-4 sm:py-4 border-b border-[#2a2a2a]">
               <h3 className="text-white font-bold text-lg sm:text-xl" style={{ fontFamily: 'Bebas Neue, Gotham SSM, sans-serif' }}>
-                Créer une Ligue
+                Créer une Ligue Privée
               </h3>
               <button
                 className="text-white bg-[#629F3F] rounded-full w-8 h-8 flex items-center justify-center font-bold hover:bg-[#4a7a2f] transition-colors duration-200"
@@ -570,16 +698,11 @@ const LeaguesModal = ({ open, onClose }) => {
                   placeholder="Ex: Ligue des Champions"
                 />
               </div>
-              <div>
-                <label className="text-white text-sm font-bold mb-2 block">Type</label>
-                <select 
-                  value={createFormData.type}
-                  onChange={(e) => setCreateFormData({...createFormData, type: e.target.value})}
-                  className="w-full bg-[#232323] text-white border border-[#629F3F] rounded px-3 py-2 focus:outline-none focus:border-[#4a7a2f] transition-colors duration-200"
-                >
-                  <option value="public">🌍 Public</option>
-                  <option value="private">🔑 Privé</option>
-                </select>
+              <div className="bg-[#232323] border border-[#629F3F] rounded-lg p-3">
+                <p className="text-gray-300 text-sm">
+                  <span className="text-[#629F3F] font-bold">Note:</span> Toutes les ligues sont privées. 
+                  Vous recevrez un code d'invitation pour partager avec vos amis.
+                </p>
               </div>
               <button 
                 className="w-full bg-[#629F3F] hover:bg-[#4a7a2f] text-white font-bold py-3 rounded-lg transition-colors duration-200"
@@ -595,10 +718,10 @@ const LeaguesModal = ({ open, onClose }) => {
       {/* Join League Modal */}
       {showJoinModal && (
         <div className="fixed inset-0 z-60 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4 transition-opacity duration-300 ease-out">
-          <div className="bg-[#181818] rounded-t-2xl sm:rounded-2xl shadow-2xl border border-[#629F3F] w-full max-w-full sm:max-w-[90vw] md:max-w-[85vw] lg:max-w-lg xl:max-w-lg mx-2 sm:mx-0">
+          <div className="bg-[#181818] rounded-t-2xl sm:rounded-2xl shadow-2xl border border-[#629F3F] w-full max-w-full sm:max-w-[90vw] md:max-w-[85vw] lg:max-w-md xl:max-w-md mx-2 sm:mx-0">
             <div className="flex items-center justify-between px-4 sm:px-6 py-4 sm:py-4 border-b border-[#2a2a2a]">
               <h3 className="text-white font-bold text-lg sm:text-xl" style={{ fontFamily: 'Bebas Neue, Gotham SSM, sans-serif' }}>
-                Rejoindre une Ligue
+                Rejoindre une Ligue Privée
               </h3>
               <button
                 className="text-white bg-[#629F3F] rounded-full w-8 h-8 flex items-center justify-center font-bold hover:bg-[#4a7a2f] transition-colors duration-200"
@@ -608,104 +731,31 @@ const LeaguesModal = ({ open, onClose }) => {
               </button>
             </div>
             
-            {/* Join Modal Tabs */}
-            <div className="flex border-b border-[#2a2a2a] bg-[#181818]">
-              <button
-                className={`flex-1 py-4 px-6 text-center font-bold text-sm lg:text-base uppercase transition-colors duration-200 ${
-                  joinModalTab === 'private' 
-                    ? 'text-[#629F3F] border-b-2 border-[#629F3F]' 
-                    : 'text-white hover:text-[#629F3F]'
-                }`}
-                style={{ fontFamily: 'Bebas Neue, Gotham SSM, sans-serif' }}
-                onClick={() => setJoinModalTab('private')}
-              >
-                🔑 Privée
-              </button>
-              <button
-                className={`flex-1 py-4 px-6 text-center font-bold text-sm lg:text-base uppercase transition-colors duration-200 ${
-                  joinModalTab === 'public' 
-                    ? 'text-[#629F3F] border-b-2 border-[#629F3F]' 
-                    : 'text-white hover:text-[#629F3F]'
-                }`}
-                style={{ fontFamily: 'Bebas Neue, Gotham SSM, sans-serif' }}
-                onClick={() => setJoinModalTab('public')}
-              >
-                🌍 Publique
-              </button>
-            </div>
-
             <div className="p-4 sm:p-6">
-              {joinModalTab === 'private' ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-white text-sm font-bold mb-2 block">Code d'invitation</label>
-                    <div className="flex flex-col gap-2">
-                      <input 
-                        type="text" 
-                        value={privateCode}
-                        onChange={(e) => setPrivateCode(e.target.value.toUpperCase())}
-                        className="w-full bg-[#232323] text-white border border-[#629F3F] rounded px-3 py-2 focus:outline-none focus:border-[#4a7a2f] transition-colors duration-200 font-mono text-center tracking-wider text-lg"
-                        placeholder="ABC123"
-                        maxLength={6}
-                      />
-                      <button 
-                        className="w-full bg-[#629F3F] hover:bg-[#4a7a2f] text-white font-bold px-6 py-2 rounded transition-colors duration-200"
-                        onClick={handleJoinPrivateLeague}
-                      >
-                        Rejoindre
-                      </button>
-                    </div>
-                    <p className="text-gray-400 text-xs mt-2">
-                      Le code doit contenir exactement 6 caractères
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-white text-sm font-bold mb-2 block">🔍 Rechercher</label>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-white text-sm font-bold mb-2 block">Code d'invitation</label>
+                  <div className="flex flex-col gap-2">
                     <input 
                       type="text" 
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-[#232323] text-white border border-[#629F3F] rounded px-3 py-2 focus:outline-none focus:border-[#4a7a2f] transition-colors duration-200"
-                      placeholder="Nom de la ligue ou manager..."
+                      value={privateCode}
+                      onChange={(e) => setPrivateCode(e.target.value.toUpperCase())}
+                      className="w-full bg-[#232323] text-white border border-[#629F3F] rounded px-3 py-2 focus:outline-none focus:border-[#4a7a2f] transition-colors duration-200 font-mono text-center tracking-wider text-lg"
+                      placeholder="ABC123"
+                      maxLength={6}
                     />
+                    <button 
+                      className="w-full bg-[#629F3F] hover:bg-[#4a7a2f] text-white font-bold px-6 py-2 rounded transition-colors duration-200"
+                      onClick={handleJoinPrivateLeague}
+                    >
+                      Rejoindre
+                    </button>
                   </div>
-                  
-                  <div className="space-y-3 max-h-60 overflow-y-auto">
-                    {filteredPublicLeagues.length > 0 ? (
-                      filteredPublicLeagues.map((league) => (
-                        <div key={league.id} className="rounded-lg p-4 border border-[#629F3F] hover:bg-[#232323] transition-all duration-200 hover:scale-[1.02]">
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <h4 className="text-white font-bold text-lg">{league.name}</h4>
-                              <p className="text-[#629F3F] font-bold text-sm">Manager: {league.manager}</p>
-                            </div>
-                            <span className="text-green-400 text-xs font-bold px-2 py-1 rounded bg-green-900/20">
-                              PUBLIC
-                            </span>
-                          </div>
-                          <button 
-                            className="w-full bg-[#629F3F] hover:bg-[#4a7a2f] text-white font-bold py-2 rounded transition-colors duration-200"
-                            onClick={() => handleJoinPublicLeague(league.id)}
-                          >
-                            Rejoindre
-                          </button>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-8 text-gray-400">
-                        <div className="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-3">
-                          <span className="text-gray-500 text-xl">🔍</span>
-                        </div>
-                        <p className="font-bold mb-1">Aucune ligue trouvée</p>
-                        <p className="text-sm">Essayez de modifier votre recherche</p>
-                      </div>
-                    )}
-                  </div>
+                  <p className="text-gray-400 text-xs mt-2">
+                    Le code doit contenir exactement 6 caractères
+                  </p>
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
