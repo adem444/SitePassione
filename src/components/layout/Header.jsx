@@ -1,8 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, User, LogOut, HelpCircle } from 'lucide-react';
+import EditProfileModal from '../modals/EditProfileModal';
+import HelpModal from '../modals/HelpModal';
 
-const Header = ({ onProfileClick, onHelpClick }) => {
+const Header = ({ onProfileClick, onHelpClick, onLogout, user = {
+  avatar: '/avatar.jpg',
+  name: 'ADEM MHIRI',
+  email: 'adem@example.com'
+} }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [helpModalOpen, setHelpModalOpen] = useState(false);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -18,6 +26,30 @@ const Header = ({ onProfileClick, onHelpClick }) => {
   const handleLogout = () => {
     console.log('Déconnexion...');
     setIsDropdownOpen(false);
+    if (onLogout) {
+      onLogout();
+    }
+  };
+
+  const handleProfileClick = () => {
+    setEditProfileOpen(true);
+    setIsDropdownOpen(false);
+    if (onProfileClick) {
+      onProfileClick();
+    }
+  };
+
+  const handleHelpClick = () => {
+    setHelpModalOpen(true);
+    if (onHelpClick) {
+      onHelpClick();
+    }
+  };
+
+  const handleProfileSave = (updatedProfile) => {
+    // TODO: handle profile save (API call, state update, etc.)
+    setEditProfileOpen(false);
+    // Optionally show a success message
   };
 
   return (
@@ -37,7 +69,7 @@ const Header = ({ onProfileClick, onHelpClick }) => {
           <div className="flex items-center space-x-3">
             {/* Help Button */}
             <button
-              onClick={onHelpClick}
+              onClick={handleHelpClick}
               className="flex items-center space-x-2 px-4 py-2 bg-[#629F3F] hover:bg-[#4a7a2f] text-white font-bold rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg"
             >
               <HelpCircle size={18} />
@@ -67,10 +99,7 @@ const Header = ({ onProfileClick, onHelpClick }) => {
                 <div className="absolute right-0 mt-2 w-56 z-50">
                   <div className="bg-[#181818] border border-[#629F3F] rounded-2xl shadow-2xl py-2 text-white animate-fade-in-up" style={{ boxShadow: '0 8px 32px 0 rgba(98,159,63,0.18)' }}>
                     <button
-                      onClick={() => {
-                        onProfileClick();
-                        setIsDropdownOpen(false);
-                      }}
+                      onClick={handleProfileClick}
                       className="flex items-center space-x-3 w-full px-4 py-3 text-left font-heading text-lg rounded-xl hover:bg-[#629F3F] hover:text-white focus:bg-[#629F3F] focus:text-white transition-all"
                     >
                       <User size={20} />
@@ -91,6 +120,21 @@ const Header = ({ onProfileClick, onHelpClick }) => {
           </div>
         </div>
       </div>
+
+      {/* Edit Profile Modal */}
+      <EditProfileModal
+        open={editProfileOpen}
+        onClose={() => setEditProfileOpen(false)}
+        onSave={handleProfileSave}
+        user={user}
+     
+      />
+
+      {/* Help Modal */}
+      <HelpModal
+        open={helpModalOpen}
+        onClose={() => setHelpModalOpen(false)}
+      />
     </header>
   );
 };

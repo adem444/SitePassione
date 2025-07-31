@@ -1,29 +1,117 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 const partners = [
-  { logo: '/adidas.png', link: 'https://www.adidas.com/' },
-  { logo: '/partner1.svg', link: '#' },
-  { logo: '/partner2.svg', link: '#' },
-  { logo: '/partner3.svg', link: '#' },
+  { logo: '/adidas.svg', link: 'https://www.adidas.com/', name: 'Adidas' },
+  { logo: '/adidas.svg', link: 'https://www.adidas.com/', name: 'Adidas' },
+  { logo: '/adidas.svg', link: 'https://www.adidas.com/', name: 'Adidas' },
+  { logo: '/adidas.svg', link: 'https://www.adidas.com/', name: 'Adidas' },
+  { logo: '/adidas.svg', link: 'https://www.adidas.com/', name: 'Adidas' },
+  { logo: '/adidas.svg', link: 'https://www.adidas.com/', name: 'Adidas' },
+  { logo: '/adidas.svg', link: 'https://www.adidas.com/', name: 'Adidas' },
+  { logo: '/adidas.svg', link: 'https://www.adidas.com/', name: 'Adidas' },
+  { logo: '/adidas.svg', link: 'https://www.adidas.com/', name: 'Adidas' },
 ];
 
-const PartnersSection = () => (
-  <section className="pt-4 pb-8 w-full">
-    <div className="max-w-[950px] mx-auto px-4">
-      <h2 className="text-white font-bold uppercase mb-4 text-center" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif', fontSize:'28px'}}>NOS PARTENAIRES</h2>
-      <div className="flex flex-row flex-nowrap items-center gap-12 overflow-x-auto md:gap-24 md:overflow-x-visible md:justify-start custom-scrollbar-hide" style={{width:'100%'}}>
-        {partners.map((p, i) => (
-          <a key={i} href={p.link} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
-            <img src={p.logo} alt="partner" className="h-20 w-20 object-contain rounded-none" style={{background:'#222', padding:'8px'}} />
-          </a>
-        ))}
+const PartnersSection = () => {
+  const carouselRef = useRef(null);
+
+  useEffect(() => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+
+    let animationId;
+    let scrollPosition = 0;
+    const scrollSpeed = 1;
+
+    const animate = () => {
+      scrollPosition += scrollSpeed;
+      
+      // Reset when we've scrolled the width of one set of partners
+      if (scrollPosition >= carousel.scrollWidth / 2) {
+        scrollPosition = 0;
+      }
+      
+      carousel.scrollLeft = scrollPosition;
+      animationId = requestAnimationFrame(animate);
+    };
+
+    // Start automatic scrolling
+    animate();
+
+    return () => {
+      cancelAnimationFrame(animationId);
+    };
+  }, []);
+
+  return (
+    <section className="py-8 w-full">
+      <div className="max-w-[1350px] mx-auto px-4">
+        <h2 className="text-white font-bold uppercase mb-6 text-left" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif', fontSize:'28px', letterSpacing: '0.04em'}}>
+          NOS PARTENAIRES
+        </h2>
+        
+        <div className="overflow-x-auto">
+          <div 
+            ref={carouselRef}
+            className="flex items-center gap-6 md:gap-8 lg:gap-10"
+            style={{
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}
+          >
+            {/* First set of partners */}
+            {partners.map((partner, index) => (
+              <a 
+                key={`first-${index}`}
+                href={partner.link} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex-shrink-0"
+              >
+                <div className="w-20 h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 bg-[#1D1D1D] border border-[#2A3C2A] rounded-lg p-3 flex items-center justify-center">
+                  <img 
+                    src={partner.logo} 
+                    alt={`${partner.name} logo`} 
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              </a>
+            ))}
+            
+            {/* Duplicate set for infinite loop */}
+            {partners.map((partner, index) => (
+              <a 
+                key={`second-${index}`}
+                href={partner.link} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex-shrink-0"
+              >
+                <div className="w-20 h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 bg-[#1D1D1D] border border-[#2A3C2A] rounded-lg p-3 flex items-center justify-center">
+                  <img 
+                    src={partner.logo} 
+                    alt={`${partner.name} logo`} 
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
       </div>
-    </div>
-    <style>{`
-      .custom-scrollbar-hide::-webkit-scrollbar { display: none; }
-      .custom-scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-    `}</style>
-  </section>
-);
+      
+      <style jsx>{`
+        .overflow-x-auto::-webkit-scrollbar {
+          display: none;
+        }
+        
+        .overflow-x-auto {
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+      `}</style>
+    </section>
+  );
+};
 
 export default PartnersSection; 
