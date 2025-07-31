@@ -2,12 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, User, LogOut, HelpCircle } from 'lucide-react';
 import EditProfileModal from '../modals/EditProfileModal';
 import HelpModal from '../modals/HelpModal';
+import { useAuth } from '../../context/AuthContext';
 
-const Header = ({ onProfileClick, onHelpClick, onLogout, user = {
-  avatar: '/avatar.jpg',
-  name: 'ADEM MHIRI',
-  email: 'adem@example.com'
-} }) => {
+const Header = ({ onProfileClick, onHelpClick, onLogout }) => {
+  const { user, logout } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
@@ -26,6 +24,7 @@ const Header = ({ onProfileClick, onHelpClick, onLogout, user = {
   const handleLogout = () => {
     console.log('Déconnexion...');
     setIsDropdownOpen(false);
+    logout();
     if (onLogout) {
       onLogout();
     }
@@ -83,11 +82,13 @@ const Header = ({ onProfileClick, onHelpClick, onLogout, user = {
                 className="flex items-center space-x-2 sm:space-x-3 px-2 py-2 transition-all"
               >
                 <img
-                  src="/avatar.jpg"
+                  src={user?.logo || "/avatar.jpg"}
                   alt="Profile"
                   className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover"
                 />
-                <span className="text-white font-medium text-sm sm:text-base hidden sm:inline">ADEM MHIRI</span>
+                <span className="text-white font-medium text-sm sm:text-base hidden sm:inline">
+                  {user?.name || user?.username || 'Utilisateur'}
+                </span>
                 <ChevronDown
                   size={16}
                   className={`text-gray-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`}
@@ -127,7 +128,6 @@ const Header = ({ onProfileClick, onHelpClick, onLogout, user = {
         onClose={() => setEditProfileOpen(false)}
         onSave={handleProfileSave}
         user={user}
-     
       />
 
       {/* Help Modal */}

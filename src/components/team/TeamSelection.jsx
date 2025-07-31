@@ -5,6 +5,7 @@ import Header from '../layout/Header';
 import Footer from '../layout/Footer';
 import PartnersSection from '../layout/PartnersSection';
 import FootballFieldFormation from './FootballFieldFormation';
+import api from '../../utils/api';
 
 const TeamSelection = () => {
   const navigate = useNavigate();
@@ -12,51 +13,314 @@ const TeamSelection = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('Tous Les Equipes');
-  const [activeFilter, setActiveFilter] = useState('GK');
+  const [activeFilter, setActiveFilter] = useState('GK'); // Default to GK
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const modalRef = useRef(null);
   const closeButtonRef = useRef(null);
 
-  // Mock player data (replace with real API data)
-  const players = {
+  // Dynamic data states
+  const [teams, setTeams] = useState([]);
+  const [players, setPlayers] = useState({
+    Goalkeeper: [],
+    Defender: [],
+    Midfielder: [],
+    Attacker: []
+  });
+  const [loadingData, setLoadingData] = useState(true);
+  const [error, setError] = useState(null);
+  const [loadedPositions, setLoadedPositions] = useState(new Set()); // Track loaded positions
+  const [loadingPosition, setLoadingPosition] = useState(''); // Track which position is loading
+  const [opponents, setOpponents] = useState({}); // Store opponent data for each team
+
+  // Fetch teams and players on component mount
+  useEffect(() => {
+    fetchTeams();
+    // Load GK players by default
+    loadPlayersByPosition('GK');
+  }, []);
+
+  const fetchTeams = async () => {
+    setLoadingData(true);
+    setError(null);
+    
+    try {
+      // Fetch teams only
+      const teamsResponse = await api.getAllTeams();
+      console.log('Teams response:', teamsResponse);
+      
+      if (teamsResponse && teamsResponse.teams) {
+        setTeams(teamsResponse.teams);
+        // Fetch opponents for each team
+        await fetchOpponents(teamsResponse.teams);
+      } else {
+        // Use fallback teams if API response is invalid
+        const fallbackTeams = [
+          { _id: '1', name: 'ESS' },
+          { _id: '2', name: 'EST' },
+          { _id: '3', name: 'CA' },
+          { _id: '4', name: 'CAB' },
+          { _id: '5', name: 'CSS' },
+          { _id: '6', name: 'USBG' },
+          { _id: '7', name: 'USM' }
+        ];
+        setTeams(fallbackTeams);
+        await fetchOpponents(fallbackTeams);
+      }
+    } catch (error) {
+      console.error('Error fetching teams:', error);
+      setError('Failed to load teams. Please try again.');
+      
+      // Set fallback teams if API fails
+      const fallbackTeams = [
+        { _id: '1', name: 'ESS' },
+        { _id: '2', name: 'EST' },
+        { _id: '3', name: 'CA' },
+        { _id: '4', name: 'CAB' },
+        { _id: '5', name: 'CSS' },
+        { _id: '6', name: 'USBG' },
+        { _id: '7', name: 'USM' }
+      ];
+      setTeams(fallbackTeams);
+      await fetchOpponents(fallbackTeams);
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
+  const fetchOpponents = async (teamsList) => {
+    try {
+      const opponentsData = {};
+      
+      for (const team of teamsList) {
+        try {
+          // Fetch opponent data for this team
+          const opponentResponse = await api.getTeamOpponents(team._id);
+          console.log(`Opponents for ${team.name}:`, opponentResponse);
+          
+          if (opponentResponse && opponentResponse.opponents && opponentResponse.opponents.length > 0) {
+            opponentsData[team.name] = opponentResponse.opponents;
+          } else {
+            // No matches found for this team
+            opponentsData[team.name] = [];
+          }
+        } catch (error) {
+          console.error(`Error fetching opponents for ${team.name}:`, error);
+          // No opponents found
+          opponentsData[team.name] = [];
+        }
+      }
+      
+      setOpponents(opponentsData);
+      console.log('All opponents data:', opponentsData);
+    } catch (error) {
+      console.error('Error fetching opponents:', error);
+      // Set empty opponents for all teams
+      const emptyOpponents = {};
+      teamsList.forEach(team => {
+        emptyOpponents[team.name] = [];
+      });
+      setOpponents(emptyOpponents);
+    }
+  };
+
+  // Get opponent for a specific player
+  const getPlayerOpponent = (player) => {
+    if (!player || !player.team) return '-';
+    
+    const teamOpponents = opponents[player.team];
+    if (teamOpponents && teamOpponents.length > 0) {
+      return `VS ${teamOpponents[0]}`;
+    }
+    
+    // No matches found for this team
+    return '-';
+  };
+
+  const loadPlayersByPosition = async (position) => {
+    console.log('Loading players for position:', position);
+    
+    // Don't reload if already loaded
+    if (loadedPositions.has(position)) {
+      console.log('Position already loaded:', position);
+      return;
+    }
+
+    setLoadingPosition(position);
+    
+    try {
+      const positionMap = {
+        'GK': 'Goalkeeper',
+        'DEF': 'Defender', 
+        'MID': 'Midfielder',
+        'FWD': 'Attacker'
+      };
+
+      const backendPosition = positionMap[position];
+      if (!backendPosition) {
+        console.error('Invalid position:', position);
+        return;
+      }
+
+      console.log('Fetching players for backend position:', backendPosition);
+      const playersResponse = await api.getPlayersByPosition(backendPosition);
+      console.log(`${position} players response:`, playersResponse);
+      
+      if (playersResponse && playersResponse.data) {
+        setPlayers(prev => ({
+          ...prev,
+          [backendPosition]: playersResponse.data
+        }));
+      } else {
+        // Use fallback data if API response is invalid
+        const fallbackData = {
+          'GK': mockPlayers.GK,
+          'DEF': mockPlayers.DEF,
+          'MID': mockPlayers.MID,
+          'FWD': mockPlayers.FWD
+        };
+        
+        setPlayers(prev => ({
+          ...prev,
+          [backendPosition]: fallbackData[position] || []
+        }));
+      }
+      
+      setLoadedPositions(prev => new Set([...prev, position]));
+      console.log('Position loaded successfully:', position);
+    } catch (error) {
+      console.error(`Error fetching ${position} players:`, error);
+      
+      // Use fallback data for this position
+      const fallbackData = {
+        'GK': mockPlayers.GK,
+        'DEF': mockPlayers.DEF,
+        'MID': mockPlayers.MID,
+        'FWD': mockPlayers.FWD
+      };
+      
+      const positionMap = {
+        'GK': 'Goalkeeper',
+        'DEF': 'Defender', 
+        'MID': 'Midfielder',
+        'FWD': 'Attacker'
+      };
+      
+      setPlayers(prev => ({
+        ...prev,
+        [positionMap[position]]: fallbackData[position] || []
+      }));
+      
+      setLoadedPositions(prev => new Set([...prev, position]));
+    } finally {
+      setLoadingPosition('');
+    }
+  };
+
+  // Handle position filter change
+  const handlePositionChange = (newPosition) => {
+    console.log('Position changed to:', newPosition);
+    setActiveFilter(newPosition);
+    loadPlayersByPosition(newPosition);
+  };
+
+  // Transform backend player data to frontend format
+  const transformPlayerData = (backendPlayers) => {
+    if (!Array.isArray(backendPlayers)) {
+      console.warn('backendPlayers is not an array:', backendPlayers);
+      return [];
+    }
+
+    return backendPlayers.map(player => {
+      try {
+        // Map backend position to frontend position
+        const positionMap = {
+          'Goalkeeper': 'GK',
+          'Defender': 'DEF',
+          'Midfielder': 'MID',
+          'Attacker': 'FWD'
+        };
+
+        const frontendPosition = positionMap[player.position] || player.position;
+        
+        return {
+          id: player._id || player.id || Math.random().toString(),
+          name: player.name || 'Unknown Player',
+          team: player.team?.name || player.team || 'Unknown',
+          position: frontendPosition, // Use frontend position key
+          price: player.value_passionne || 6, // Default price if not set
+          points: player.stats?.goals || 0, // Use goals as points for now
+          jersey: player.logo || '/jercy1/ess.webp', // Use player photo or default
+          clubLogo: player.team?.logo || '/ESS.png', // Use team logo or default
+          selectedBy: player.selectedBy || '0%'
+        };
+      } catch (error) {
+        console.error('Error transforming player:', player, error);
+        return {
+          id: Math.random().toString(),
+          name: 'Error Player',
+          team: 'Unknown',
+          position: 'Unknown',
+          price: 6,
+          points: 0,
+          jersey: '/jercy1/ess.webp',
+          clubLogo: '/ESS.png',
+          selectedBy: '0%'
+        };
+      }
+    });
+  };
+
+  // Get transformed players for current filter
+  const getFilteredPlayers = () => {
+    try {
+      const positionMap = {
+        'GK': 'Goalkeeper',
+        'DEF': 'Defender', 
+        'MID': 'Midfielder',
+        'FWD': 'Attacker'
+      };
+
+      const backendPosition = positionMap[activeFilter];
+      const backendPlayers = players[backendPosition] || [];
+      
+      console.log('Getting filtered players for:', activeFilter, 'backend position:', backendPosition, 'players:', backendPlayers);
+      
+      const transformedPlayers = transformPlayerData(backendPlayers);
+      console.log('Transformed players:', transformedPlayers);
+      
+      const filteredPlayers = transformedPlayers.filter(player => {
+        const matchesSearch = player.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesTeam = selectedTeam === 'Tous Les Equipes' || player.team === selectedTeam;
+        
+        return matchesSearch && matchesTeam;
+      });
+      
+      console.log('Final filtered players:', filteredPlayers);
+      return filteredPlayers;
+    } catch (error) {
+      console.error('Error filtering players:', error);
+      return [];
+    }
+  };
+
+  // Mock player data (fallback if API fails)
+  const mockPlayers = {
     GK: [
-      { id: 1, name: 'Raki Aouani', team: 'ESS', position: 'GK', price: 6, points: 85, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 2, name: 'Raki Aouani', team: 'ESS', position: 'GK', price: 6, points: 78, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 3, name: 'Raki Aouani', team: 'ESS', position: 'GK', price: 6, points: 72, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 4, name: 'Raki Aouani', team: 'ESS', position: 'GK', price: 6, points: 70, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 5, name: 'Raki Aouani', team: 'ESS', position: 'GK', price: 6, points: 68, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 6, name: 'Raki Aouani', team: 'ESS', position: 'GK', price: 6, points: 65, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
+      { id: 1, name: 'Raki Aouani', team: 'ESS', position: 'Goalkeeper', price: 6, points: 85, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
+      { id: 2, name: 'Raki Aouani', team: 'ESS', position: 'Goalkeeper', price: 6, points: 78, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
     ],
     DEF: [
-      { id: 7, name: 'Raki Aouani', team: 'ESS', position: 'DEF', price: 6, points: 92, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 8, name: 'Raki Aouani', team: 'ESS', position: 'DEF', price: 6, points: 88, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 9, name: 'Raki Aouani', team: 'ESS', position: 'DEF', price: 6, points: 85, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 10, name: 'Raki Aouani', team: 'ESS', position: 'DEF', price: 6, points: 82, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 11, name: 'Raki Aouani', team: 'ESS', position: 'DEF', price: 6, points: 80, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 12, name: 'Raki Aouani', team: 'ESS', position: 'DEF', price: 6, points: 78, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
+      { id: 7, name: 'Raki Aouani', team: 'ESS', position: 'Defender', price: 6, points: 92, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
+      { id: 8, name: 'Raki Aouani', team: 'ESS', position: 'Defender', price: 6, points: 88, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
     ],
     MID: [
-      { id: 13, name: 'Raki Aouani', team: 'ESS', position: 'MID', price: 6, points: 105, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 14, name: 'Raki Aouani', team: 'ESS', position: 'MID', price: 6, points: 98, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 15, name: 'Raki Aouani', team: 'ESS', position: 'MID', price: 6, points: 92, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 16, name: 'Raki Aouani', team: 'ESS', position: 'MID', price: 6, points: 88, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 17, name: 'Raki Aouani', team: 'ESS', position: 'MID', price: 6, points: 85, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 18, name: 'Raki Aouani', team: 'ESS', position: 'MID', price: 6, points: 82, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
+      { id: 13, name: 'Raki Aouani', team: 'ESS', position: 'Midfielder', price: 6, points: 105, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
+      { id: 14, name: 'Raki Aouani', team: 'ESS', position: 'Midfielder', price: 6, points: 98, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
     ],
     FWD: [
-      { id: 19, name: 'Raki Aouani', team: 'ESS', position: 'FWD', price: 12, points: 115, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 20, name: 'Raki Aouani', team: 'ESS', position: 'FWD', price: 6, points: 108, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 21, name: 'Raki Aouani', team: 'ESS', position: 'FWD', price: 6, points: 102, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 22, name: 'Raki Aouani', team: 'ESS', position: 'FWD', price: 6, points: 95, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 23, name: 'Raki Aouani', team: 'ESS', position: 'FWD', price: 6, points: 90, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 24, name: 'Raki Aouani', team: 'ESS', position: 'FWD', price: 6, points: 85, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 25, name: 'Raki Aouani', team: 'ESS', position: 'FWD', price: 12, points: 115, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 26, name: 'Raki Aouani', team: 'ESS', position: 'FWD', price: 6, points: 108, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 27, name: 'Raki Aouani', team: 'ESS', position: 'FWD', price: 6, points: 102, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 28, name: 'Raki Aouani', team: 'ESS', position: 'FWD', price: 6, points: 95, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 29, name: 'Raki Aouani', team: 'ESS', position: 'FWD', price: 6, points: 90, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
-      { id: 30, name: 'Raki Aouani', team: 'ESS', position: 'FWD', price: 6, points: 85, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
+      { id: 19, name: 'Raki Aouani', team: 'ESS', position: 'Attacker', price: 12, points: 115, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
+      { id: 20, name: 'Raki Aouani', team: 'ESS', position: 'Attacker', price: 6, points: 108, jersey: '/jercy1/ess.webp', clubLogo: '/ESS.png' },
     ]
   };
 
@@ -78,37 +342,74 @@ const TeamSelection = () => {
     return selectedPlayers.filter(player => player.position === position).length;
   };
 
+  // Check if a team has reached its limit (3 players)
+  const isTeamAtLimit = (teamName) => {
+    return selectedPlayers.filter(player => player.team === teamName).length >= 3;
+  };
+
+  // Check if a specific player's team is at limit
+  const isPlayerTeamAtLimit = (player) => {
+    const playerTeam = player.team || 'Unknown';
+    return isTeamAtLimit(playerTeam);
+  };
+
   const getTotalBudget = () => {
-    return selectedPlayers.reduce((total, player) => total + player.price, 0);
+    return selectedPlayers.reduce((total, player) => total + (player.price || 0), 0);
   };
 
   const getTotalPoints = () => {
-    return selectedPlayers.filter(player => player.name).reduce((total, player) => total + player.points, 0);
+    return selectedPlayers.filter(player => player && player.name).reduce((total, player) => total + (player.points || 0), 0);
   };
 
   const handlePlayerSelect = (player) => {
+    console.log('Player selected:', player);
+    
     // Check if player is already selected
     const isAlreadySelected = selectedPlayers.some(p => p.id === player.id);
     
     if (isAlreadySelected) {
+      console.log('Player already selected, removing:', player.name);
       // Remove player if already selected
       setSelectedPlayers(selectedPlayers.filter(p => p.id !== player.id));
       return;
     }
 
-    const positionCount = getSelectedCount(player.position);
-    const maxAllowed = positionRequirements[player.position].max;
-    
-    if (positionCount >= maxAllowed) {
-      alert(`Vous ne pouvez sélectionner que ${maxAllowed} joueur(s) pour la position ${positionRequirements[player.position].label}`);
+    // Add null checks and safe property access
+    if (!player || !player.position) {
+      console.error('Invalid player data:', player);
       return;
     }
 
-    if (getTotalBudget() + player.price > 100) {
+    // Check team limit (max 3 players per team)
+    const playerTeam = player.team || 'Unknown';
+    const teamPlayerCount = selectedPlayers.filter(p => p.team === playerTeam).length;
+    
+    if (teamPlayerCount >= 3) {
+      alert(`Vous ne pouvez sélectionner que 3 joueurs maximum par équipe. Vous avez déjà ${teamPlayerCount} joueurs de ${playerTeam}.`);
+      return;
+    }
+
+    const positionCount = getSelectedCount(player.position);
+    const positionReq = positionRequirements[player.position];
+    
+    if (!positionReq) {
+      console.error('Invalid position:', player.position);
+      return;
+    }
+    
+    const maxAllowed = positionReq.max;
+    
+    if (positionCount >= maxAllowed) {
+      alert(`Vous ne pouvez sélectionner que ${maxAllowed} joueur(s) pour la position ${positionReq.label}`);
+      return;
+    }
+
+    if (getTotalBudget() + (player.price || 0) > 100) {
       alert('Budget dépassé! Vous devez respecter le budget de 100 VP.');
       return;
     }
 
+    console.log('Adding player to team:', player.name);
     // Add player to the beginning of the array (top of the list)
     setSelectedPlayers([player, ...selectedPlayers]);
   };
@@ -135,21 +436,81 @@ const TeamSelection = () => {
       return;
     }
 
+    // Create 4-4-2 formation with substitutes
+    const formation = create442Formation(selectedPlayers);
+
     setShowConfirmModal(true);
+  };
+
+  // Create 4-4-2 formation with substitutes
+  const create442Formation = (players) => {
+    // Group players by position
+    const gkPlayers = players.filter(p => p.position === 'GK');
+    const defPlayers = players.filter(p => p.position === 'DEF');
+    const midPlayers = players.filter(p => p.position === 'MID');
+    const fwdPlayers = players.filter(p => p.position === 'FWD');
+
+    // 4-4-2 formation: 1 GK, 4 DEF, 4 MID, 2 FWD, 4 substitutes
+    const formation = {
+      starting11: {
+        goalkeeper: gkPlayers.slice(0, 1), // 1 GK
+        defenders: defPlayers.slice(0, 4), // 4 DEF
+        midfielders: midPlayers.slice(0, 4), // 4 MID
+        forwards: fwdPlayers.slice(0, 2), // 2 FWD
+      },
+      substitutes: [
+        ...gkPlayers.slice(1, 2), // 1 GK sub
+        ...defPlayers.slice(4, 6), // 2 DEF subs
+        ...midPlayers.slice(4, 6), // 2 MID subs
+        ...fwdPlayers.slice(2, 3), // 1 FWD sub
+      ].filter(Boolean), // Remove undefined entries
+      formation: '4-4-2',
+      totalBudget: getTotalBudget(),
+      totalPoints: getTotalPoints()
+    };
+
+    console.log('Formation created:', formation);
+    return formation;
   };
 
   const handleFinalConfirm = async () => {
     setIsLoading(true);
     
     try {
-      console.log('Creating team with:', {
-        players: selectedPlayers,
-        budget: getTotalBudget(),
-        totalPoints: getTotalPoints()
-      });
+      // Create the final team formation
+      const formation = create442Formation(selectedPlayers);
+      
+      console.log('Submitting team formation:', formation);
+      
+      // Submit team to backend
+      const teamData = {
+        players: selectedPlayers.map(p => p.id),
+        formation: "4-4-2",
+        budget: formation.totalBudget,
+        points: formation.totalPoints
+      };
+      
+      console.log('Team data being sent to backend:', teamData);
+      
+      // Call API to save team
+      const response = await api.createTeam(teamData);
+      
+      if (response.success) {
+        console.log('Team created successfully:', response);
+        
+        // Show success message
+        if (response.message && response.message.includes('simulated')) {
+          alert('Votre équipe a été créée avec succès! (Mode simulation - backend non disponible)');
+        } else {
+          alert('Votre équipe a été créée avec succès!');
+        }
       
       navigate('/home');
+      } else {
+        throw new Error(response.message || 'Erreur lors de la création de l\'équipe');
+      }
     } catch (error) {
+      console.error('Error creating team:', error);
       alert('Erreur lors de la création de l\'équipe. Veuillez réessayer.');
     } finally {
       setIsLoading(false);
@@ -158,14 +519,8 @@ const TeamSelection = () => {
   };
 
   // Get all players and filter based on active filter
-  const allPlayers = Object.values(players).flat();
-  const filteredPlayers = allPlayers.filter(player => {
-    const matchesSearch = player.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesTeam = selectedTeam === 'Tous Les Equipes' || player.team === selectedTeam;
-    const matchesPosition = player.position === activeFilter;
-    
-    return matchesSearch && matchesTeam && matchesPosition;
-  });
+  const allPlayers = getFilteredPlayers();
+  const filteredPlayers = allPlayers;
 
   const handleAddPlayer = (position) => {
     // Only show modal on mobile devices (screen width < 1024px)
@@ -176,7 +531,22 @@ const TeamSelection = () => {
   };
 
   // Original Desktop Player Selection Panel
-  const PlayerSelectionPanel = () => (
+  const PlayerSelectionPanel = () => {
+    // Add error boundary and null checks
+    try {
+      if (!filteredPlayers || !Array.isArray(filteredPlayers)) {
+        return (
+          <section className="relative px-4 py-6 w-full bg-[#141414] border border-[#1D1D1D]">
+            <div className="text-center py-8">
+              <div className="text-gray-400 text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                Chargement des joueurs...
+              </div>
+            </div>
+          </section>
+        );
+      }
+
+      return (
     <section className="relative px-4 py-6 w-full bg-[#141414] border border-[#1D1D1D]">
       <div className="space-y-6">
         {/* Header Section */}
@@ -193,18 +563,30 @@ const TeamSelection = () => {
         <div className="flex flex-wrap justify-center gap-2">
           {positionFilters.map((filter) => {
             const isActive = activeFilter === filter.key;
+            const isLoading = loadingPosition === filter.key;
+            const isLoaded = loadedPositions.has(filter.key);
+            
             return (
               <button
                 key={filter.key}
-                onClick={() => setActiveFilter(filter.key)}
+                onClick={() => handlePositionChange(filter.key)}
+                disabled={isLoading}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   isActive
                     ? 'bg-[#629F3F] text-white shadow-lg'
+                    : isLoading
+                    ? 'bg-[#0F0F0F] text-gray-500 cursor-not-allowed'
                     : 'bg-[#0F0F0F] text-gray-400 hover:bg-[#1D1D1D] hover:text-white'
                 }`}
                 style={{ fontFamily: 'Gotham SSM, sans-serif' }}
               >
                 <span>{filter.label}</span>
+                {isLoading && (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                )}
+                {!isLoaded && !isLoading && (
+                  <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                )}
               </button>
             );
           })}
@@ -231,13 +613,11 @@ const TeamSelection = () => {
               style={{ fontFamily: 'Gotham SSM, sans-serif' }}
             >
               <option value="Tous Les Equipes">Tous Les Equipes</option>
-              <option value="ESS">ESS</option>
-              <option value="EST">EST</option>
-              <option value="CA">CA</option>
-              <option value="CAB">CAB</option>
-              <option value="CSS">CSS</option>
-              <option value="USBG">USBG</option>
-              <option value="USM">USM</option>
+                  {teams && teams.map((team) => (
+                    <option key={team._id} value={team.name}>
+                      {team.name}
+                    </option>
+                  ))}
             </select>
             <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
           </div>
@@ -248,7 +628,14 @@ const TeamSelection = () => {
           scrollbarWidth: 'thin',
           scrollbarColor: '#629F3F #0F0F0F'
         }}>
-          {filteredPlayers.length === 0 ? (
+          {loadingPosition === activeFilter ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#629F3F] mx-auto mb-4"></div>
+              <div className="text-gray-400 text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                Chargement des joueurs...
+              </div>
+            </div>
+          ) : filteredPlayers.length === 0 ? (
             <div className="text-center py-8">
               <div className="text-gray-400 text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
                 Aucun joueur trouvé
@@ -256,10 +643,16 @@ const TeamSelection = () => {
             </div>
           ) : (
             filteredPlayers.map((player) => {
+                  if (!player || !player.id) {
+                    return null; // Skip invalid players
+                  }
+                  
               const isSelected = selectedPlayers.some(p => p.id === player.id);
               const positionCount = getSelectedCount(player.position);
-              const maxAllowed = positionRequirements[player.position].max;
+                  const maxAllowed = positionRequirements[player.position]?.max || 5;
               const isMaxReached = positionCount >= maxAllowed && !isSelected;
+              const isTeamLimitReached = isPlayerTeamAtLimit(player) && !isSelected;
+              const isDisabled = isMaxReached || isTeamLimitReached;
               
               return (
                 <div
@@ -267,32 +660,35 @@ const TeamSelection = () => {
                   className={`p-4 border transition-all duration-200 cursor-pointer ${
                     isSelected 
                       ? 'bg-[#629F3F] border-[#629F3F] shadow-lg' 
-                      : isMaxReached
+                      : isDisabled
                       ? 'bg-[#0F0F0F] border-[#1D1D1D] opacity-50 cursor-not-allowed'
                       : 'bg-[#0F0F0F] border-[#2A3C2A] hover:border-[#629F3F] hover:bg-[#1D1D1D]'
                   }`}
-                  onClick={() => !isMaxReached && handlePlayerSelect(player)}
+                  onClick={() => !isDisabled && handlePlayerSelect(player)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <img
-                        src={player.clubLogo}
-                        alt={`${player.team} logo`}
+                            src={player.clubLogo || '/ESS.png'}
+                            alt={`${player.team || 'Unknown'} logo`}
                         className="w-8 h-8 rounded-full"
                       />
                       <div>
                         <div className={`font-semibold text-sm ${isSelected ? 'text-white' : 'text-white'}`} style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
-                          {player.name}
+                              {player.name || 'Unknown Player'}
                         </div>
                         <div className={`text-xs ${isSelected ? 'text-white/80' : 'text-gray-400'}`} style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
-                          {player.team} • {positionRequirements[player.position].label}
+                              {player.team || 'Unknown'} • {positionRequirements[player.position]?.label || player.position || 'Unknown'}
+                              {isTeamLimitReached && !isSelected && (
+                                <span className="text-red-400 ml-1">(Équipe complète)</span>
+                              )}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
                       <div className="text-right">
                         <div className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-[#629F3F]'}`} style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
-                          {player.price} VP
+                              {player.price || 6} VP
                         </div>
                       </div>
                       <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
@@ -306,7 +702,7 @@ const TeamSelection = () => {
                   </div>
                 </div>
               );
-            })
+                }).filter(Boolean) // Remove null entries
           )}
         </div>
 
@@ -328,6 +724,29 @@ const TeamSelection = () => {
       </div>
     </section>
   );
+    } catch (error) {
+      console.error('Error in PlayerSelectionPanel:', error);
+      return (
+        <section className="relative px-4 py-6 w-full bg-[#141414] border border-[#1D1D1D]">
+          <div className="text-center py-8">
+            <div className="text-red-400 text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+              Erreur lors du chargement des joueurs
+            </div>
+            <button
+              onClick={() => {
+                fetchTeams();
+                loadPlayersByPosition('GK');
+              }}
+              className="mt-4 bg-[#629F3F] text-white px-4 py-2 rounded-lg hover:bg-[#4e7e32] transition-colors"
+              style={{ fontFamily: 'Gotham SSM, sans-serif' }}
+            >
+              Réessayer
+            </button>
+          </div>
+        </section>
+      );
+    }
+  };
 
   // Professional Mobile Player Selection Modal
   const MobilePlayerModal = ({ isOpen, onClose }) => {
@@ -354,13 +773,8 @@ const TeamSelection = () => {
       };
     }, [onClose]);
 
-    const filteredPlayers = allPlayers.filter(player => {
-      const matchesSearch = player.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesTeam = selectedTeam === 'Tous Les Equipes' || player.team === selectedTeam;
-      const matchesPosition = player.position === activeFilter;
-      
-      return matchesSearch && matchesTeam && matchesPosition;
-    });
+    // Use the same filtered players as desktop
+    const mobileFilteredPlayers = filteredPlayers;
 
     return (
       <div 
@@ -404,14 +818,19 @@ const TeamSelection = () => {
                 const isActive = activeFilter === filter.key;
                 const count = getSelectedCount(filter.key);
                 const max = positionRequirements[filter.key].max;
+                const isLoading = loadingPosition === filter.key;
+                const isLoaded = loadedPositions.has(filter.key);
                 
                 return (
                   <button
                     key={filter.key}
-                    onClick={() => setActiveFilter(filter.key)}
+                    onClick={() => handlePositionChange(filter.key)}
+                    disabled={isLoading}
                     className={`flex items-center justify-center space-x-1 px-2 py-2 text-xs font-medium transition-all rounded-md ${
                       isActive
                         ? 'bg-[#629F3F] text-white'
+                        : isLoading
+                        ? 'bg-[#1D1D1D] text-gray-500 cursor-not-allowed'
                         : 'bg-[#1D1D1D] text-gray-400 hover:text-white'
                     }`}
                     style={{ fontFamily: 'Gotham SSM, sans-serif' }}
@@ -422,6 +841,12 @@ const TeamSelection = () => {
                     }`}>
                       {count}/{max}
                     </span>
+                    {isLoading && (
+                      <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin ml-1"></div>
+                    )}
+                    {!isLoaded && !isLoading && (
+                      <div className="w-1.5 h-1.5 bg-gray-500 rounded-full ml-1"></div>
+                    )}
                   </button>
                 );
               })}
@@ -447,19 +872,26 @@ const TeamSelection = () => {
                 style={{ fontFamily: 'Gotham SSM, sans-serif' }}
               >
                 <option value="Tous Les Equipes">Toutes les équipes</option>
-                <option value="ESS">ESS</option>
-                <option value="EST">EST</option>
-                <option value="CA">CA</option>
-                <option value="CAB">CAB</option>
-                <option value="CSS">CSS</option>
-                <option value="USBG">USBG</option>
-                <option value="USM">USM</option>
+                {teams && teams.map((team) => (
+                  <option key={team._id} value={team.name}>
+                    {team.name}
+                  </option>
+                ))}
               </select>
             </div>
 
             {/* Players List */}
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {filteredPlayers.length === 0 ? (
+              {loadingPosition === activeFilter ? (
+                <div className="flex items-center justify-center h-32 p-4">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#629F3F] mx-auto mb-2"></div>
+                    <div className="text-gray-400 text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                      Chargement des joueurs...
+                    </div>
+                  </div>
+                </div>
+              ) : mobileFilteredPlayers.length === 0 ? (
                 <div className="flex items-center justify-center h-32 p-4">
                   <div className="text-center">
                     <div className="text-gray-400 text-sm mb-2" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
@@ -471,11 +903,17 @@ const TeamSelection = () => {
                   </div>
                 </div>
               ) : (
-                filteredPlayers.map((player) => {
+                mobileFilteredPlayers.map((player) => {
+                  if (!player || !player.id) {
+                    return null; // Skip invalid players
+                  }
+                  
                   const isSelected = selectedPlayers.some(p => p.id === player.id);
                   const positionCount = getSelectedCount(player.position);
-                  const maxAllowed = positionRequirements[player.position].max;
+                  const maxAllowed = positionRequirements[player.position]?.max || 5;
                   const isMaxReached = positionCount >= maxAllowed && !isSelected;
+                  const isTeamLimitReached = isPlayerTeamAtLimit(player) && !isSelected;
+                  const isDisabled = isMaxReached || isTeamLimitReached;
                   
                   return (
                     <div
@@ -483,32 +921,35 @@ const TeamSelection = () => {
                       className={`p-3 border transition-all cursor-pointer ${
                         isSelected 
                           ? 'bg-[#629F3F] border-[#629F3F]' 
-                          : isMaxReached
+                          : isDisabled
                           ? 'bg-[#1D1D1D] border-[#1D1D1D] opacity-50 cursor-not-allowed'
                           : 'bg-[#1D1D1D] border-[#2A3C2A] hover:border-[#629F3F]'
                       }`}
-                      onClick={() => !isMaxReached && handlePlayerSelect(player)}
+                      onClick={() => !isDisabled && handlePlayerSelect(player)}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <img
-                            src={player.clubLogo}
-                            alt={`${player.team} logo`}
+                            src={player.clubLogo || '/ESS.png'}
+                            alt={`${player.team || 'Unknown'} logo`}
                             className="w-6 h-6 rounded-full"
                           />
                           <div>
                             <div className={`font-medium text-sm ${isSelected ? 'text-white' : 'text-white'}`} style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
-                              {player.name}
+                              {player.name || 'Unknown Player'}
                             </div>
                             <div className={`text-xs ${isSelected ? 'text-white/80' : 'text-gray-400'}`} style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
-                              {player.team}
+                              {player.team || 'Unknown'}
+                              {isTeamLimitReached && !isSelected && (
+                                <span className="text-red-400 ml-1">(Équipe complète)</span>
+                              )}
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
                           <div className="text-right">
                             <div className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-[#629F3F]'}`} style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
-                              {player.price} VP
+                              {player.price || 6} VP
                             </div>
                           </div>
                           <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
@@ -522,7 +963,7 @@ const TeamSelection = () => {
                       </div>
                     </div>
                   );
-                })
+                }).filter(Boolean) // Remove null entries
               )}
             </div>
           </div>
@@ -535,6 +976,9 @@ const TeamSelection = () => {
   const ConfirmationModal = ({ isOpen, onClose, onConfirm, isLoading }) => {
     if (!isOpen) return null;
 
+    // Create formation for display
+    const formation = create442Formation(selectedPlayers);
+
     return (
       <div 
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm transition-opacity duration-300 ease-out"
@@ -542,7 +986,7 @@ const TeamSelection = () => {
         role="dialog"
         aria-modal="true"
       >
-        <div className="bg-[#181818] rounded-2xl shadow-2xl relative border border-[#629F3F] w-full max-w-md mx-4 p-6">
+        <div className="bg-[#181818] rounded-2xl shadow-2xl relative border border-[#629F3F] w-full max-w-lg mx-4 p-6">
           <div className="text-center space-y-4">
             <div className="w-16 h-16 bg-[#629F3F] rounded-full flex items-center justify-center mx-auto">
               <AlertTriangle className="text-white" size={32} />
@@ -550,9 +994,52 @@ const TeamSelection = () => {
             <h3 className="text-white text-xl font-bold" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
               CONFIRMER L'ÉQUIPE
             </h3>
+            
+            {/* Formation Details */}
+            <div className="bg-[#0F0F0F] rounded-lg p-4 space-y-3">
+              <div className="text-[#629F3F] font-bold" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                FORMATION: 4-4-2
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="text-gray-400 mb-1" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                    Titulaires (11)
+                  </div>
+                  <div className="text-white" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                    • 1 Gardien<br/>
+                    • 4 Défenseurs<br/>
+                    • 4 Milieux<br/>
+                    • 2 Attaquants
+                  </div>
+                </div>
+                <div>
+                  <div className="text-gray-400 mb-1" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                    Remplaçants (4)
+                  </div>
+                  <div className="text-white" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                    • 1 Gardien<br/>
+                    • 2 Défenseurs<br/>
+                    • 1 Milieu<br/>
+                    • 0 Attaquant
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                  Budget: {getTotalBudget()} VP
+                </span>
+                <span className="text-gray-400" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                  Points: {getTotalPoints()}
+                </span>
+              </div>
+            </div>
+            
             <p className="text-gray-400 text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
-              Êtes-vous sûr de vouloir créer votre équipe avec {selectedPlayers.length} joueurs ?
+              Êtes-vous sûr de vouloir créer votre équipe avec cette formation ?
             </p>
+            
             <div className="flex space-x-3 pt-4">
               <button
                 onClick={onClose}
@@ -597,7 +1084,43 @@ const TeamSelection = () => {
         </div>
       </div>
 
+      {/* Loading State */}
+      {loadingData && (
+        <div className="w-full max-w-[1350px] mx-auto px-2 sm:px-4 md:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#629F3F] mx-auto mb-4"></div>
+              <p className="text-gray-400" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                Chargement des données...
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !loadingData && (
+        <div className="w-full max-w-[1350px] mx-auto px-2 sm:px-4 md:px-6 lg:px-8 py-6">
+          <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-6 text-center">
+            <p className="text-red-400 mb-4" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+              {error}
+            </p>
+            <button
+              onClick={() => {
+                fetchTeams();
+                loadPlayersByPosition('GK');
+              }}
+              className="bg-[#629F3F] text-white px-4 py-2 rounded-lg hover:bg-[#4e7e32] transition-colors"
+              style={{ fontFamily: 'Gotham SSM, sans-serif' }}
+            >
+              Réessayer
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Container */}
+      {!loadingData && !error && (
       <div className="w-full max-w-[1350px] mx-auto px-2 sm:px-4 md:px-6 lg:px-8 py-6">
         
         {/* Two Column Layout */}
@@ -641,6 +1164,12 @@ const TeamSelection = () => {
               budget={100 - getTotalBudget()}
               onAddPlayer={handleAddPlayer}
               onReplacePlayer={(player) => handlePlayerRemove(player.id)}
+              onSelectPlayer={handlePlayerSelect}
+              availablePlayers={players}
+              activeFilter={activeFilter}
+              onPositionChange={handlePositionChange}
+              setShowPlayerModal={setShowPlayerModal}
+              getPlayerOpponent={getPlayerOpponent}
             />
 
             {/* Mobile Add Players Button - Better UI */}
@@ -691,6 +1220,7 @@ const TeamSelection = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Mobile Modal */}
       <MobilePlayerModal 

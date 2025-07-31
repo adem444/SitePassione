@@ -1,21 +1,27 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, X, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import api from '../../utils/api';
 
 const Login = () => {
   const navigate = useNavigate();
-  const [passionId, setPassionId] = useState('');
+  const { login } = useAuth();
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [passionIdError, setPassionIdError] = useState('');
+  const [usernameError, setUsernameError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   // Forgot Password Modal States
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [forgotStep, setForgotStep] = useState('phone'); // 'phone', 'code', 'newPassword'
+  const [forgotStep, setForgotStep] = useState('method'); // 'method', 'phone', 'email', 'code', 'newPassword'
+  const [verificationMethod, setVerificationMethod] = useState(''); // 'phone' or 'email'
   const [phoneNumber, setPhoneNumber] = useState('');
   const [phoneError, setPhoneError] = useState('');
+  const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [codeError, setCodeError] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -26,15 +32,20 @@ const Login = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isForgotLoading, setIsForgotLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [isOTPLoading, setIsOTPLoading] = useState(false);
+  const [unverifiedUser, setUnverifiedUser] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     let valid = true;
-    setPassionIdError('');
+    setUsernameError('');
     setPasswordError('');
 
-    if (!passionId.trim()) {
-      setPassionIdError('Veuillez entrer votre Passione ID.');
+    if (!username.trim()) {
+      setUsernameError('Veuillez entrer votre nom d\'utilisateur.');
       valid = false;
     }
 
@@ -51,10 +62,28 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      console.log('Login attempt:', { passionId, password });
-      navigate('/team-selection');
+      const result = await login(username.trim(), password);
+
+      if (result.success) {
+        // Navigate to team selection
+        navigate('/team-selection');
+      } else {
+        // Handle different error cases
+        if (result.error === 'User not found') {
+          setUsernameError('Nom d\'utilisateur incorrect.');
+        } else if (result.error === 'Invalid credentials') {
+          setPasswordError('Mot de passe incorrect.');
+        } else if (result.error === 'OTP not verified. Please verify your account.') {
+          // Show OTP verification modal for unverified accounts
+          setUnverifiedUser({ username: username.trim() });
+          setShowOTPModal(true);
+        } else {
+          alert(result.error || 'Erreur de connexion. Veuillez réessayer.');
+        }
+      }
     } catch (error) {
-      alert('Erreur de connexion. Veuillez réessayer.');
+      console.error('Login error:', error);
+      alert('Erreur de connexion. Veuillez vérifier votre connexion internet et réessayer.');
     } finally {
       setIsLoading(false);
     }
@@ -71,9 +100,12 @@ const Login = () => {
   // Forgot Password Functions
   const handleForgotPassword = () => {
     setShowForgotPassword(true);
-    setForgotStep('phone');
+    setForgotStep('method');
+    setVerificationMethod('');
     setPhoneNumber('');
     setPhoneError('');
+    setEmail('');
+    setEmailError('');
     setVerificationCode('');
     setCodeError('');
     setNewPassword('');
@@ -83,14 +115,26 @@ const Login = () => {
   };
 
   const handleSendCode = async () => {
-    if (!phoneNumber.trim()) {
-      setPhoneError('Veuillez entrer votre numéro de téléphone.');
-      return;
-    }
+    if (verificationMethod === 'phone') {
+      if (!phoneNumber.trim()) {
+        setPhoneError('Veuillez entrer votre numéro de téléphone.');
+        return;
+      }
 
-    if (phoneNumber.length < 8) {
-      setPhoneError('Le numéro de téléphone doit contenir au moins 8 chiffres.');
-      return;
+      if (phoneNumber.length < 8) {
+        setPhoneError('Le numéro de téléphone doit contenir au moins 8 chiffres.');
+        return;
+      }
+    } else if (verificationMethod === 'email') {
+      if (!email.trim()) {
+        setEmailError('Veuillez entrer votre adresse e-mail.');
+        return;
+      }
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        setEmailError('Format d\'e-mail invalide.');
+        return;
+      }
     }
 
     setIsForgotLoading(true);
@@ -191,9 +235,12 @@ const Login = () => {
 
   const closeModal = () => {
     setShowForgotPassword(false);
-    setForgotStep('phone');
+    setForgotStep('method');
+    setVerificationMethod('');
     setPhoneNumber('');
     setPhoneError('');
+    setEmail('');
+    setEmailError('');
     setVerificationCode('');
     setCodeError('');
     setNewPassword('');
@@ -201,6 +248,85 @@ const Login = () => {
     setNewPasswordError('');
     setConfirmPasswordError('');
     setCountdown(0);
+  };
+
+  const handleOTPVerification = async () => {
+    if (!otp.trim()) {
+      setOtpError("Veuillez entrer le code OTP.");
+      return;
+    }
+
+    if (otp.length !== 6) {
+      setOtpError("Le code OTP doit contenir 6 chiffres.");
+      return;
+    }
+
+    setIsOTPLoading(true);
+    setOtpError("");
+
+    try {
+      // First, get user info to get telephone
+      const userResponse = await api.getUserByUsername(unverifiedUser.username);
+      const user = userResponse.user;
+
+      const response = await api.verifyOTP({
+        telephone: user.telephone,
+        otp: otp.trim()
+      });
+
+      if (response.token) {
+        // Store authentication data
+        api.setToken(response.token);
+        api.setUser(response.user);
+        
+        // Close modal and navigate
+        setShowOTPModal(false);
+        setOtp("");
+        setOtpError("");
+        setUnverifiedUser(null);
+        navigate("/team-selection");
+      } else {
+        setOtpError("Code OTP invalide. Veuillez réessayer.");
+      }
+    } catch (error) {
+      console.error('OTP verification error:', error);
+      setOtpError(error.message || "Erreur lors de la vérification OTP. Veuillez réessayer.");
+    } finally {
+      setIsOTPLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    setIsOTPLoading(true);
+    try {
+      // Get user info and resend OTP
+      const userResponse = await api.getUserByUsername(unverifiedUser.username);
+      const user = userResponse.user;
+
+      // Re-register to get new OTP
+      await api.register({
+        name: user.name,
+        username: user.username,
+        password: password,
+        telephone: user.telephone,
+        email: user.email
+      });
+      setOtp("");
+      setOtpError("");
+      alert("Nouveau code OTP envoyé!");
+    } catch (error) {
+      console.error('Resend OTP error:', error);
+      alert("Erreur lors de l'envoi du nouveau code OTP. Veuillez réessayer.");
+    } finally {
+      setIsOTPLoading(false);
+    }
+  };
+
+  const closeOTPModal = () => {
+    setShowOTPModal(false);
+    setOtp("");
+    setOtpError("");
+    setUnverifiedUser(null);
   };
 
   return (
@@ -228,42 +354,25 @@ const Login = () => {
             </p>
           </div>
 
-          {/* Google Login */}
-          <button
-            onClick={handleGoogleLogin}
-            className="w-full bg-[#5B5757] hover:bg-[#4a4a4a] text-white py-3 font-medium flex items-center justify-center space-x-2 transition-all"
-            style={{ fontFamily: 'Gotham SSM, sans-serif' }}
-          >
-            <span className="text-lg font-bold">G</span>
-            <span className="text-sm sm:text-base font-semibold">CONTINUER AVEC GOOGLE</span>
-          </button>
-
-          {/* Divider */}
-          <div className="flex items-center space-x-3">
-            <div className="flex-1 h-px bg-gray-500"></div>
-            <span className="text-gray-400 text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>OU</span>
-            <div className="flex-1 h-px bg-gray-500"></div>
-          </div>
-
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Passion ID */}
+            {/* Username */}
             <div>
               <label className="block text-white text-xs font-semibold uppercase tracking-wide mb-1" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
-                PASSIONE ID
+              user name
               </label>
               <input
                 type="text"
-                value={passionId}
-                onChange={(e) => setPassionId(e.target.value)}
-                placeholder="Entrez votre ID"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Entrez votre user name"
                 disabled={isLoading}
                 className={`w-full bg-[#5B5757] text-white py-3 px-4 placeholder-gray-400 focus:ring-2 focus:ring-[#629F3F]/50 outline-none ${
-                  passionIdError ? 'ring-2 ring-red-500' : ''
+                  usernameError ? 'ring-2 ring-red-500' : ''
                 }`}
                 style={{ fontFamily: 'Gotham SSM, sans-serif' }}
               />
-              {passionIdError && <p className="text-red-500 text-sm mt-1" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>{passionIdError}</p>}
+              {usernameError && <p className="text-red-500 text-sm mt-1" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>{usernameError}</p>}
             </div>
 
             {/* Password */}
@@ -393,12 +502,70 @@ const Login = () => {
 
             {/* Modal Content */}
             <div className="p-4 sm:p-6 space-y-6">
-              {/* Step 1: Phone Number */}
-              {forgotStep === 'phone' && (
+              {/* Step 1: Method Selection */}
+              {forgotStep === 'method' && (
                 <div className="space-y-4">
                   <p className="text-gray-300 text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
-                    Entrez votre numéro de téléphone pour recevoir un code de vérification.
+                    Sélectionnez la méthode de vérification pour réinitialiser votre mot de passe.
                   </p>
+                  <button
+                    onClick={() => {
+                      setVerificationMethod('phone');
+                      setForgotStep('phone');
+                      setPhoneNumber('');
+                      setPhoneError('');
+                      setEmail('');
+                      setEmailError('');
+                      setVerificationCode('');
+                      setCodeError('');
+                      setNewPassword('');
+                      setConfirmPassword('');
+                      setNewPasswordError('');
+                      setConfirmPasswordError('');
+                    }}
+                    className="w-full bg-[#629F3F] hover:bg-[#4a7a2f] text-white py-3 font-semibold text-sm transition-all"
+                    style={{ fontFamily: 'Gotham SSM, sans-serif' }}
+                  >
+                    Par téléphone
+                  </button>
+                  <button
+                    onClick={() => {
+                      setVerificationMethod('email');
+                      setForgotStep('email');
+                      setEmail('');
+                      setEmailError('');
+                      setVerificationCode('');
+                      setCodeError('');
+                      setNewPassword('');
+                      setConfirmPassword('');
+                      setNewPasswordError('');
+                      setConfirmPasswordError('');
+                    }}
+                    className="w-full bg-[#629F3F] hover:bg-[#4a7a2f] text-white py-3 font-semibold text-sm transition-all"
+                    style={{ fontFamily: 'Gotham SSM, sans-serif' }}
+                  >
+                    Par e-mail
+                  </button>
+                </div>
+              )}
+
+              {/* Step 2: Phone Number */}
+              {forgotStep === 'phone' && (
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => {
+                        setForgotStep('method');
+                        setVerificationMethod('');
+                      }}
+                      className="text-gray-400 hover:text-white transition-colors"
+                    >
+                      <ArrowLeft size={20} />
+                    </button>
+                    <p className="text-gray-300 text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                      Entrez votre numéro de téléphone pour recevoir un code de vérification.
+                    </p>
+                  </div>
                   
                   <div>
                     <label className="block text-white text-xs font-semibold uppercase tracking-wide mb-1" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
@@ -430,18 +597,70 @@ const Login = () => {
                 </div>
               )}
 
-              {/* Step 2: Verification Code */}
-              {forgotStep === 'code' && (
+              {/* Step 3: Email */}
+              {forgotStep === 'email' && (
                 <div className="space-y-4">
                   <div className="flex items-center space-x-2">
                     <button
-                      onClick={handleBackToPhone}
+                      onClick={() => {
+                        setForgotStep('method');
+                        setVerificationMethod('');
+                      }}
                       className="text-gray-400 hover:text-white transition-colors"
                     >
                       <ArrowLeft size={20} />
                     </button>
                     <p className="text-gray-300 text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
-                      Code envoyé au {phoneNumber}
+                      Entrez votre adresse e-mail pour recevoir un code de vérification.
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-white text-xs font-semibold uppercase tracking-wide mb-1" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                      ADRESSE E-MAIL
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="exemple@domaine.com"
+                      className={`w-full bg-[#5B5757] text-white py-3 px-4 placeholder-gray-400 focus:ring-2 focus:ring-[#629F3F]/50 outline-none ${
+                        emailError ? 'ring-2 ring-red-500' : ''
+                      }`}
+                      style={{ fontFamily: 'Gotham SSM, sans-serif' }}
+                    />
+                    {emailError && <p className="text-red-500 text-sm mt-1" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>{emailError}</p>}
+                  </div>
+
+                  <button
+                    onClick={handleSendCode}
+                    disabled={isForgotLoading}
+                    className={`w-full bg-[#629F3F] hover:bg-[#4a7a2f] text-white py-3 font-semibold text-sm transition-all ${
+                      isForgotLoading ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                    style={{ fontFamily: 'Gotham SSM, sans-serif' }}
+                  >
+                    {isForgotLoading ? 'ENVOI...' : 'ENVOYER LE CODE'}
+                  </button>
+                </div>
+              )}
+
+              {/* Step 4: Verification Code */}
+              {forgotStep === 'code' && (
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => {
+                        setForgotStep(verificationMethod === 'phone' ? 'phone' : 'email');
+                        setVerificationCode('');
+                        setCodeError('');
+                      }}
+                      className="text-gray-400 hover:text-white transition-colors"
+                    >
+                      <ArrowLeft size={20} />
+                    </button>
+                    <p className="text-gray-300 text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                      Code envoyé au {verificationMethod === 'phone' ? phoneNumber : email}
                     </p>
                   </div>
                   
@@ -482,12 +701,16 @@ const Login = () => {
                 </div>
               )}
 
-              {/* Step 3: New Password */}
+              {/* Step 5: New Password */}
               {forgotStep === 'newPassword' && (
                 <div className="space-y-4">
                   <div className="flex items-center space-x-2">
                     <button
-                      onClick={handleBackToCode}
+                      onClick={() => {
+                        setForgotStep('code');
+                        setVerificationCode('');
+                        setCodeError('');
+                      }}
                       className="text-gray-400 hover:text-white transition-colors"
                     >
                       <ArrowLeft size={20} />
@@ -561,6 +784,75 @@ const Login = () => {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OTP Verification Modal */}
+      {showOTPModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-black border border-gray-800 w-full max-w-md mx-auto relative">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-800">
+              <button
+                onClick={closeOTPModal}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={24} />
+              </button>
+              <h2 className="text-white text-lg sm:text-xl font-semibold" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                VÉRIFICATION OTP
+              </h2>
+              <div className="w-6"></div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-4 sm:p-6 space-y-6">
+              <div className="text-center">
+                <p className="text-gray-300 text-sm mb-4" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                  Votre compte n'est pas encore vérifié. Veuillez entrer le code OTP envoyé par SMS.
+                </p>
+                
+                <div>
+                  <label className="block text-white text-xs font-semibold uppercase tracking-wide mb-1" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                    CODE OTP
+                  </label>
+                  <input
+                    type="text"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    placeholder="000000"
+                    maxLength={6}
+                    className={`w-full bg-[#5B5757] text-white py-3 px-4 placeholder-gray-400 focus:ring-2 focus:ring-[#629F3F]/50 outline-none text-center text-lg tracking-widest ${
+                      otpError ? 'ring-2 ring-red-500' : ''
+                    }`}
+                    style={{ fontFamily: 'Gotham SSM, sans-serif' }}
+                  />
+                  {otpError && <p className="text-red-500 text-sm mt-1" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>{otpError}</p>}
+                </div>
+
+                <div className="flex space-x-3 mt-6">
+                  <button
+                    onClick={handleResendOTP}
+                    disabled={isOTPLoading}
+                    className="flex-1 bg-[#5B5757] hover:bg-[#4a4a4a] text-white py-3 font-semibold text-sm transition-all"
+                    style={{ fontFamily: 'Gotham SSM, sans-serif' }}
+                  >
+                    RENVOYER
+                  </button>
+                  <button
+                    onClick={handleOTPVerification}
+                    disabled={isOTPLoading}
+                    className={`flex-1 bg-[#629F3F] hover:bg-[#4a7a2f] text-white py-3 font-semibold text-sm transition-all ${
+                      isOTPLoading ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                    style={{ fontFamily: 'Gotham SSM, sans-serif' }}
+                  >
+                    {isOTPLoading ? 'VÉRIFICATION...' : 'VÉRIFIER'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

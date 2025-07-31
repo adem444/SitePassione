@@ -6,6 +6,12 @@ const FootballFieldFormation = ({
   budget,
   onAddPlayer,
   onReplacePlayer,
+  onSelectPlayer, // New prop for selecting players
+  availablePlayers, // New prop for available players
+  activeFilter, // New prop for current position filter
+  onPositionChange, // New prop for changing position filter
+  setShowPlayerModal, // Prop to control existing modal
+  getPlayerOpponent, // Function to get opponent for a player
 }) => {
   // Group players by position for display
   const groupedPlayers = {
@@ -30,6 +36,27 @@ const FootballFieldFormation = ({
     { key: "MID", label: "Milieux", count: formation.MID },
     { key: "FWD", label: "Attaquants", count: formation.FWD },
   ];
+
+  // Handle player click to show available players
+  const handlePlayerClick = (position) => {
+    console.log('Football field position clicked:', position);
+    
+    if (onPositionChange) {
+      console.log('Calling onPositionChange with:', position);
+      onPositionChange(position);
+    }
+    
+    // On mobile, show the existing modal
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      console.log('Mobile device detected, showing modal');
+      if (setShowPlayerModal) {
+        setShowPlayerModal(true);
+      }
+    } else {
+      console.log('Desktop device detected, position filter updated');
+    }
+    // On desktop, the right panel will automatically show the selected position
+  };
 
   return (
     <section className="w-full bg-black mt-6" aria-label="Mon équipe sur le terrain">
@@ -63,14 +90,14 @@ const FootballFieldFormation = ({
                   {player ? (
                     <PlayerCard
                       name={player.name}
-                      match="VS Opponent"
+                      match={getPlayerOpponent ? getPlayerOpponent(player) : "VS Opponent"}
                       jerseySrc={player.jersey}
-                      onClick={() => onReplacePlayer && onReplacePlayer(player)}
+                      onClick={() => handlePlayerClick(row.key)}
                     />
                   ) : (
                     <div
                       className="w-full h-full bg-black/30 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center cursor-pointer hover:border-green-400 transition-colors"
-                      onClick={() => onAddPlayer && onAddPlayer(row.key)}
+                      onClick={() => handlePlayerClick(row.key)}
                     >
                       <span className="text-gray-400 text-[clamp(16px,4vw,26px)] font-bold">+</span>
                     </div>
