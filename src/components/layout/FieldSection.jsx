@@ -12,79 +12,131 @@ function groupPlayersByPosition(players) {
   return grouped;
 }
 
-const defaultPlayers = [
-  {
-    name: 'SALAH EDDINE GHDESMI',
-    match: 'VS Esperence Sportive De Tunis',
-    jerseySrc: '/jercy1/ess.webp',
-    pos: 'gk',
-    club: 'Etoile Sportive Du Sahel',
-    clubLogo: '/EST.png',
-    status: 'Certain de jouer',
-    selection: '15,3%',
-    age: 26,
-    nationality: 'Tunisien',
-    role: 'Capitaine',
-    upcoming: true,
-    opponent: 'Esperence Sportive De Tunis',
-    opponentLogo: '/EST.png',
-    isHome: false,
-    stats: { atk: true, value: 9 },
-  },
-  {
-    name: 'ADEM MHIRI',
-    match: 'VS Club Africain',
-    jerseySrc: '/jercy1/est .webp',
-    pos: 'def',
-    club: 'Etoile Sportive Du Sahel',
-    clubLogo: '/EST.png',
-    status: 'Certain de jouer',
-    selection: '12,1%',
-    age: 24,
-    nationality: 'Tunisien',
-    role: 'Défenseur',
-    upcoming: false, // Mark as finished
-    opponent: 'Club Africain',
-    opponentLogo: '/ESS.png',
-    isHome: false,
-    stats: { atk: false, value: 7 },
-  },
-  {
-    name: 'GHDAMSI',
-    match: 'VS Club Africain',
-    jerseySrc: 'jercy1/ca.webp',
-    pos: 'def',
-    club: 'Etoile Sportive Du Sahel',
-    clubLogo: '/EST.png',
-    status: 'Incertain',
-    selection: '8,7%',
-    age: 27,
-    nationality: 'Tunisien',
-    role: 'Défenseur',
-    upcoming: false,
-    opponent: 'Club Africain',
-    opponentLogo: '/ESS.png',
-    isHome: false,
-    stats: { atk: false, value: 6 },
-  },
-  { name: 'DEF 3', match: 'VS Club Africain', jerseySrc: 'jercy1/usm 2.webp', pos: 'def' },
-  { name: 'DEF 4', match: 'VS Club Africain', jerseySrc: 'jercy1/usbg.webp', pos: 'def' },
-  { name: 'DEF 5', match: 'VS Club Africain', jerseySrc: 'jercy1/marsa.webp', pos: 'mid' },
-  { name: 'MID 1', match: 'VS Club Africain', jerseySrc: 'jercy1/st.webp', pos: 'mid' },
-  { name: 'MID 2', match: 'VS Club Africain', jerseySrc: 'jercy1/beja.webp', pos: 'mid' },
-  { name: 'MID 3', match: 'VS Club Africain', jerseySrc: 'jercy1/omran.webp', pos: 'att' },
-  { name: 'ATT 1', match: 'VS Club Africain', jerseySrc: 'jercy1/css.webp', pos: 'att' },
-  { name: 'ATT 2', match: 'VS Club Africain', jerseySrc: 'jercy1/as gabes.webp', pos: 'att' },
-];
+// const defaultPlayers = [
+//   {
+//     name: 'SALAH EDDINE GHDESMI',
+//     match: 'VS Esperence Sportive De Tunis',
+//     jerseySrc: '/jercy1/ess.webp',
+//     pos: 'gk',
+//     club: 'Etoile Sportive Du Sahel',
+//     clubLogo: '/EST.png',
+//     status: 'Certain de jouer',
+//     selection: '15,3%',
+//     age: 26,
+//     nationality: 'Tunisien',
+//     role: 'Capitaine',
+//     upcoming: true,
+//     opponent: 'Esperence Sportive De Tunis',
+//     opponentLogo: '/EST.png',
+//     isHome: false,
+//     stats: { atk: true, value: 9 },
+//   },
+//   {
+//     name: 'ADEM MHIRI',
+//     match: 'VS Club Africain',
+//     jerseySrc: '/jercy1/est .webp',
+//     pos: 'def',
+//     club: 'Etoile Sportive Du Sahel',
+//     clubLogo: '/EST.png',
+//     status: 'Certain de jouer',
+//     selection: '12,1%',
+//     age: 24,
+//     nationality: 'Tunisien',
+//     role: 'Défenseur',
+//     upcoming: false, // Mark as finished
+//     opponent: 'Club Africain',
+//     opponentLogo: '/ESS.png',
+//     isHome: false,
+//     stats: { atk: false, value: 7 },
+//   },
+//   {
+//     name: 'GHDAMSI',
+//     match: 'VS Club Africain',
+//     jerseySrc: 'jercy1/ca.webp',
+//     pos: 'def',
+//     club: 'Etoile Sportive Du Sahel',
+//     clubLogo: '/EST.png',
+//     status: 'Incertain',
+//     selection: '8,7%',
+//     age: 27,
+//     nationality: 'Tunisien',
+//     role: 'Défenseur',
+//     upcoming: false,
+//     opponent: 'Club Africain',
+//     opponentLogo: '/ESS.png',
+//     isHome: false,
+//     stats: { atk: false, value: 6 },
+//   },
+//   { name: 'DEF 3', match: 'VS Club Africain', jerseySrc: 'jercy1/usm 2.webp', pos: 'def' },
+//   { name: 'DEF 4', match: 'VS Club Africain', jerseySrc: 'jercy1/usbg.webp', pos: 'def' },
+//   { name: 'DEF 5', match: 'VS Club Africain', jerseySrc: 'jercy1/marsa.webp', pos: 'mid' },
+//   { name: 'MID 1', match: 'VS Club Africain', jerseySrc: 'jercy1/st.webp', pos: 'mid' },
+//   { name: 'MID 2', match: 'VS Club Africain', jerseySrc: 'jercy1/beja.webp', pos: 'mid' },
+//   { name: 'MID 3', match: 'VS Club Africain', jerseySrc: 'jercy1/omran.webp', pos: 'att' },
+//   { name: 'ATT 1', match: 'VS Club Africain', jerseySrc: 'jercy1/css.webp', pos: 'att' },
+//   { name: 'ATT 2', match: 'VS Club Africain', jerseySrc: 'jercy1/as gabes.webp', pos: 'att' },
+// ];
 
 const POSITIONS = ['gk', 'def', 'mid', 'att'];
 
-const FieldSection = ({ players = defaultPlayers }) => {
-  // Group players by their position
-  const grouped = groupPlayersByPosition(players);
-
+const FieldSection = ({ players = defaultPlayers, loading = false, onRefresh }) => {
   // Modal state
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+
+  // Show loading state
+  if (loading) {
+    return (
+      <section className="w-full bg-black mt-6" aria-label="Mon équipe sur le terrain">
+        <div className="flex flex-col sm:flex-row items-start justify-between px-0 pt-4 pb-2">
+          <h2 className="text-white font-bold uppercase text-2xl sm:text-3xl md:text-4xl lg:text-[36px] leading-tight text-left" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif'}}>MON ÉQUIPE TIKI-TAKA</h2>
+          <span className="inline-block bg-black border border-[#629F3F] text-[#629F3F] font-bold uppercase rounded-full px-4 py-1 text-sm sm:text-base mt-2 sm:mt-0" style={{fontFamily:'Gotham SSM, Bebas Neue, sans-serif', letterSpacing:'0.04em'}}>
+            Chargement...
+          </span>
+        </div>
+        <div className="w-full max-w-[900px] mx-auto px-2 sm:px-4 md:px-8 min-h-[350px] md:min-h-0 md:aspect-[4/3] xl:aspect-auto xl:h-[648px] bg-no-repeat bg-center bg-cover block relative flex flex-col justify-center items-center" style={{ backgroundImage: 'url(/stadium.svg)', backgroundColor: '#222' }}>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#629F3F] mx-auto mb-4"></div>
+            <p className="text-gray-400" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+              Chargement de votre équipe...
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Show empty state if no players
+  if (!players || players.length === 0) {
+    return (
+      <section className="w-full bg-black mt-6" aria-label="Mon équipe sur le terrain">
+        <div className="flex flex-col sm:flex-row items-start justify-between px-0 pt-4 pb-2">
+          <h2 className="text-white font-bold uppercase text-2xl sm:text-3xl md:text-4xl lg:text-[36px] leading-tight text-left" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif'}}>MON ÉQUIPE TIKI-TAKA</h2>
+          <span className="inline-block bg-black border border-[#629F3F] text-[#629F3F] font-bold uppercase rounded-full px-4 py-1 text-sm sm:text-base mt-2 sm:mt-0" style={{fontFamily:'Gotham SSM, Bebas Neue, sans-serif', letterSpacing:'0.04em'}}>
+            Aucune équipe
+          </span>
+        </div>
+        <div className="w-full max-w-[900px] mx-auto px-2 sm:px-4 md:px-8 min-h-[350px] md:min-h-0 md:aspect-[4/3] xl:aspect-auto xl:h-[648px] bg-no-repeat bg-center bg-cover block relative flex flex-col justify-center items-center" style={{ backgroundImage: 'url(/stadium.svg)', backgroundColor: '#222' }}>
+          <div className="text-center">
+            <p className="text-gray-400 mb-4" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+              Vous n'avez pas encore créé d'équipe
+            </p>
+            <button 
+              onClick={() => window.location.href = '/team-selection'}
+              className="bg-[#629F3F] text-white px-6 py-3 rounded-lg hover:bg-[#4e7e32] transition-colors"
+              style={{ fontFamily: 'Gotham SSM, sans-serif' }}
+            >
+              Créer une équipe
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Group players by their position (only after we know players is not null/empty)
+  const grouped = groupPlayersByPosition(players);
+  
+
 
   return (
     <section className="w-full bg-black mt-6" aria-label="Mon équipe sur le terrain">
@@ -127,6 +179,7 @@ const FieldSection = ({ players = defaultPlayers }) => {
                     match={p.match}
                     jerseySrc={p.jerseySrc}
                     onClick={() => setSelectedPlayer(p)}
+                    role={p.role}
                   />
                 </div>
               ))}
@@ -137,6 +190,7 @@ const FieldSection = ({ players = defaultPlayers }) => {
           <PlayerModal
             player={selectedPlayer}
             onClose={() => setSelectedPlayer(null)}
+            onRefresh={onRefresh}
           />
         )}
       </div>
@@ -151,8 +205,11 @@ FieldSection.propTypes = {
       match: PropTypes.string.isRequired,
       jerseySrc: PropTypes.string.isRequired,
       pos: PropTypes.string.isRequired,
+      role: PropTypes.string,
     })
   ),
+  loading: PropTypes.bool,
+  onRefresh: PropTypes.func,
 };
 
 export default FieldSection; 

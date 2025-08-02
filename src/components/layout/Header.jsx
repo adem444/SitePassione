@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronDown, User, LogOut, HelpCircle } from 'lucide-react';
 import EditProfileModal from '../modals/EditProfileModal';
 import HelpModal from '../modals/HelpModal';
@@ -6,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const Header = ({ onProfileClick, onHelpClick, onLogout }) => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
@@ -25,6 +27,8 @@ const Header = ({ onProfileClick, onHelpClick, onLogout }) => {
     console.log('Déconnexion...');
     setIsDropdownOpen(false);
     logout();
+    // Redirect to login page
+    navigate('/login');
     if (onLogout) {
       onLogout();
     }
@@ -87,7 +91,7 @@ const Header = ({ onProfileClick, onHelpClick, onLogout }) => {
                   className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover"
                 />
                 <span className="text-white font-medium text-sm sm:text-base hidden sm:inline">
-                  {user?.name || user?.username || 'Utilisateur'}
+                  {user?.username || 'Utilisateur'}
                 </span>
                 <ChevronDown
                   size={16}

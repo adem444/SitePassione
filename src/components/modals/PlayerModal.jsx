@@ -2,12 +2,28 @@ import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import ReplacementModal from './ReplacementModal';
 import TransfertModal from './TransfertModal';
+import api from '../../utils/api';
 
 
-const PlayerModal = ({ player, onClose }) => {
+const PlayerModal = ({ player, onClose, onRefresh }) => {
+  console.log('PlayerModal - player prop:', player);
+  console.log('PlayerModal - player type:', typeof player);
+  if (player && typeof player === 'object') {
+    console.log('PlayerModal - player keys:', Object.keys(player));
+    Object.keys(player).forEach(key => {
+      const value = player[key];
+      console.log(`PlayerModal - player.${key}:`, value, 'type:', typeof value);
+      if (typeof value === 'object' && value !== null) {
+        console.log(`PlayerModal - player.${key} is object with keys:`, Object.keys(value));
+        if (value.round !== undefined || value.total !== undefined || value.detail !== undefined || value._id !== undefined) {
+          console.error(`PlayerModal - FOUND PROBLEMATIC OBJECT in player.${key}:`, value);
+        }
+      }
+    });
+  }
   const [showReplacementModal, setShowReplacementModal] = useState(false);
   const [showTransfertModal, setShowTransfertModal] = useState(false);
-  const [selectedRole, setSelectedRole] = useState(null); // 'captain' or 'vice'
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
   const modalRef = useRef(null);
   const closeButtonRef = useRef(null);
 
@@ -36,6 +52,46 @@ const PlayerModal = ({ player, onClose }) => {
 
   const borderStyle = { border: '0.5px solid #629F3F' };
 
+  // Handle captain/vice-captain role updates
+  const handleRoleUpdate = async (role) => {
+    if (!player || !player._id) {
+      console.error('Player ID not found for role update');
+      return;
+    }
+
+    try {
+      setIsUpdatingRole(true);
+      
+      let result;
+      if (role === 'captain') {
+        result = await api.makeCaptain(player._id);
+      } else if (role === 'vice') {
+        result = await api.makeViceCaptain(player._id);
+      }
+
+      if (result && result.success) {
+        console.log(`${role === 'captain' ? 'Captain' : 'Vice-captain'} updated successfully:`, result.data);
+        
+        // Refresh the home page data
+        if (onRefresh && typeof onRefresh === 'function') {
+          onRefresh();
+        }
+        
+        // Show success message
+        alert(`${role === 'captain' ? 'Capitaine' : 'Vice-capitaine'} mis à jour avec succès!`);
+      } else {
+        console.error(`Failed to update ${role}:`, result?.message);
+        alert(`Erreur lors de la mise à jour: ${result?.message || 'Erreur inconnue'}`);
+      }
+    } catch (error) {
+      console.error(`Error updating ${role}:`, error);
+      alert('Erreur lors de la mise à jour. Veuillez réessayer.');
+    } finally {
+      setIsUpdatingRole(false);
+    }
+  };
+
+  console.log('PlayerModal - Starting render...');
   return (
     <>
       <div 
@@ -66,7 +122,14 @@ const PlayerModal = ({ player, onClose }) => {
               className="text-white text-2xl sm:text-2xl lg:text-3xl font-extrabold uppercase tracking-tight break-words leading-tight"
               style={{ fontFamily: 'Bebas Neue, Gotham SSM, sans-serif', letterSpacing: '0.04em' }}
             >
-              {player.name}
+               {(() => {
+                 console.log('PlayerModal - Rendering player.name:', player.name, 'type:', typeof player.name);
+                 if (typeof player.name === 'object') {
+                   console.error('PlayerModal - player.name is an object!', player.name);
+                   return 'Unknown Player';
+                 }
+                 return player.name || 'Unknown Player';
+               })()}
             </h2>
             <button
               ref={closeButtonRef}
@@ -88,7 +151,7 @@ const PlayerModal = ({ player, onClose }) => {
                   {player.clubLogo && (
                     <img
                       src={player.clubLogo}
-                      alt={`Logo de ${player.club}`}
+                       alt={`Logo de ${typeof player.club === 'string' ? player.club : 'Unknown'}`}
                       className="w-6 h-6 object-contain flex-shrink-0"
                       loading="lazy"
                     />
@@ -97,18 +160,61 @@ const PlayerModal = ({ player, onClose }) => {
                     className="text-white text-base lg:text-lg xl:text-xl font-medium"
                     style={{ fontFamily: 'Gotham SSM, Bebas Neue, sans-serif' }}
                   >
-                    {player.club}
+                     {(() => {
+                       console.log('PlayerModal - Rendering player.club:', player.club, 'type:', typeof player.club);
+                       if (typeof player.club === 'object') {
+                         console.error('PlayerModal - player.club is an object!', player.club);
+                         return 'Unknown Club';
+                       }
+                       return typeof player.club === 'string' ? player.club : 'Unknown Club';
+                     })()}
                   </span>
                 </div>
                 <div className="text-white text-xs lg:text-base xl:text-lg font-medium" style={{ fontFamily: 'Gotham SSM, Bebas Neue, sans-serif' }}>
-                  Statut : <span className="font-bold text-[#629F3F]">{player.status}</span>
+                  Statut : <span className="font-bold text-[#629F3F]">{typeof player.status === 'string' ? player.status : 'Titulaire'}</span>
                 </div>
                   <div>
                     <span
                       className="bg-[#181818] border border-[#629F3F] text-[#629F3F] font-bold text-xs lg:text-base xl:text-lg px-3 py-1 rounded uppercase inline-block"
                       style={{ fontFamily: 'Gotham SSM, Bebas Neue, sans-serif' }}
                     >
-                      ATK | {player.stats?.value || 9} VP
+                                               ATK | {(() => {
+                          console.log('PlayerModal - Rendering player.stats:', player.stats, 'type:', typeof player.stats);
+                          if (typeof player.stats === 'object' && player.stats !== null) {
+                            console.log('PlayerModal - player.stats.value:', player.stats.value, 'type:', typeof player.stats.value);
+                            if (Array.isArray(player.stats.value)) {
+                              console.log('PlayerModal - player.stats.value is an array:', player.stats.value);
+                              console.log('PlayerModal - player.stats.value[0]:', player.stats.value[0], 'type:', typeof player.stats.value[0]);
+                              if (player.stats.value[0] && typeof player.stats.value[0] === 'object') {
+                                console.log('PlayerModal - player.stats.value[0] is an object with keys:', Object.keys(player.stats.value[0]));
+                                // Check if it has a value property
+                                if (player.stats.value[0].value !== undefined) {
+                                  console.log('PlayerModal - player.stats.value[0].value:', player.stats.value[0].value);
+                                  return player.stats.value[0].value;
+                                } else if (player.stats.value[0].total !== undefined) {
+                                  console.log('PlayerModal - player.stats.value[0].total:', player.stats.value[0].total);
+                                  return player.stats.value[0].total;
+                                } else {
+                                  console.log('PlayerModal - No usable value found in stats array element, using default');
+                                  return 9;
+                                }
+                              } else if (typeof player.stats.value[0] === 'number') {
+                                return player.stats.value[0];
+                              } else {
+                                console.log('PlayerModal - First element is not a number or usable object, using default');
+                                return 9;
+                              }
+                            } else if (typeof player.stats.value === 'number') {
+                              return player.stats.value;
+                            } else {
+                              return 9;
+                            }
+                          } else if (typeof player.stats === 'number') {
+                            return player.stats;
+                          } else {
+                            return 9;
+                          }
+                        })()} VP
                     </span>
                   </div>
                
@@ -117,7 +223,7 @@ const PlayerModal = ({ player, onClose }) => {
               <div className="flex-shrink-0 self-center">
                 <img
                   src={player.jerseySrc}
-                  alt={`Maillot de ${player.name}`}
+                   alt={`Maillot de ${typeof player.name === 'string' ? player.name : 'Unknown Player'}`}
                   className="w-20 sm:w-24 lg:w-28 xl:w-32 object-contain drop-shadow-lg"
                   loading="lazy"
                 />
@@ -131,7 +237,7 @@ const PlayerModal = ({ player, onClose }) => {
                   Sélection journée
                 </span>
                 <span className="text-white text-sm font-bold leading-tight" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif'}}>
-                  {player.selection}
+                  {typeof player.selection === 'string' ? player.selection : '0%'}
                 </span>
               </div>
               <div className="rounded-lg p-3 flex flex-col items-start gap-1 player-modal-card" style={{ border: '0.5px solid #629F3F' }}>
@@ -139,7 +245,7 @@ const PlayerModal = ({ player, onClose }) => {
                   Age
                 </span>
                 <span className="text-white text-sm font-bold leading-tight" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif'}}>
-                  {player.age} ans
+                  {typeof player.age === 'number' ? player.age : 25} ans
                 </span>
               </div>
               <div className="rounded-lg p-3 flex flex-col items-start gap-1 player-modal-card" style={{ border: '0.5px solid #629F3F' }}>
@@ -147,7 +253,7 @@ const PlayerModal = ({ player, onClose }) => {
                   Nationalité
                 </span>
                 <span className="text-white text-sm font-bold leading-tight" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif'}}>
-                  {player.nationality}
+                  {typeof player.nationality === 'string' ? player.nationality : 'Tunisien'}
                 </span>
               </div>
             </div>
@@ -167,18 +273,18 @@ const PlayerModal = ({ player, onClose }) => {
                   {player.opponentLogo && (
                     <img 
                       src={player.opponentLogo} 
-                      alt={`Logo de ${player.opponent}`} 
+                       alt={`Logo de ${typeof player.opponent === 'string' ? player.opponent : 'Unknown'}`} 
                       className="w-6 h-6 lg:w-8 lg:h-8 object-contain flex-shrink-0" 
                       loading="lazy"
                     />
                   )}
                   <span className="text-white text-sm lg:text-base font-bold truncate" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif'}}>
-                    {player.opponent}
+                    {typeof player.opponent === 'string' ? player.opponent : 'Unknown'}
                   </span>
                 </div>
                 <div className="flex flex-col items-center justify-center min-w-[80px] lg:min-w-[120px]">
                   <span className="text-white text-lg lg:text-2xl xl:text-3xl font-extrabold" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif'}}>
-                    {player.name === 'ADEM MHIRI' ? '5 - 0' : (player.score ?? '-- : --')}
+                    {player.name === 'ADEM MHIRI' ? '5 - 0' : (typeof player.score === 'string' ? player.score : '-- : --')}
                   </span>
                   <span className="text-[#629F3F] font-bold text-xs lg:text-sm">VS</span>
                 </div>
@@ -186,13 +292,13 @@ const PlayerModal = ({ player, onClose }) => {
                   {player.clubLogo && (
                     <img 
                       src={player.clubLogo} 
-                      alt={`Logo de ${player.club}`} 
+                       alt={`Logo de ${typeof player.club === 'string' ? player.club : 'Unknown'}`} 
                       className="w-6 h-6 lg:w-8 lg:h-8 object-contain flex-shrink-0" 
                       loading="lazy"
                     />
                   )}
                   <span className="text-white text-sm lg:text-base font-bold truncate" style={{fontFamily:'Gotham SSM, Bebas Neue, sans-serif'}}>
-                    {player.club}
+                    {typeof player.club === 'string' ? player.club : 'Unknown'}
                   </span>
                 </div>
               </div>
@@ -249,7 +355,7 @@ const PlayerModal = ({ player, onClose }) => {
 
 
             {/* Actions Section  */}
-            {player.name !== 'ADEM MHIRI' && (
+            {player.name !== 'ADEM MHIRI' && !player.isSubstituted && (
               <div className="flex flex-col lg:flex-row gap-4 lg:gap-8">
                 {/* Role de joueur */}
                 <div className="flex-1">
@@ -260,25 +366,40 @@ const PlayerModal = ({ player, onClose }) => {
                     <button
                       type="button"
                       className={`flex-1 min-w-[140px] min-h-[52px] border font-bold text-base xl:text-lg py-3 lg:py-4 rounded-lg flex items-center justify-center gap-3 uppercase transition-colors duration-200 touch-manipulation relative
-                        ${selectedRole === 'captain' ? 'bg-[#629F3F] text-white border-[#629F3F]' : 'bg-[#181818] text-white border-[#629F3F] hover:bg-[#232323]'}
+                        ${player.role === 'Capitaine' ? 'bg-[#629F3F] text-white border-[#629F3F]' : 'bg-[#181818] text-white border-[#629F3F] hover:bg-[#232323]'}
+                        ${isUpdatingRole ? 'opacity-50 cursor-not-allowed' : ''}
                       `}
-                      aria-pressed={selectedRole === 'captain'}
-                      onClick={() => setSelectedRole(selectedRole === 'captain' ? null : 'captain')}
+                      aria-pressed={player.role === 'Capitaine'}
+                      onClick={() => !isUpdatingRole && handleRoleUpdate('captain')}
+                      disabled={isUpdatingRole}
                     >
+                      {isUpdatingRole ? (
+                        <span className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          TRAITEMENT...
+                        </span>
+                      ) : (
                       <span className="truncate">Capitaine</span>
-              
+                      )}
                     </button>
                     <button
                       type="button"
                       className={`flex-1 min-w-[140px] min-h-[52px] border font-bold text-base xl:text-lg py-3 lg:py-4 rounded-lg flex items-center justify-center gap-3 uppercase transition-colors duration-200 touch-manipulation relative
-                        ${selectedRole === 'vice' ? 'bg-[#629F3F] text-white border-[#629F3F]' : 'bg-[#181818] text-white border-[#629F3F] hover:bg-[#232323]'}
+                        ${player.role === 'Vice-capitaine' ? 'bg-[#629F3F] text-white border-[#629F3F]' : 'bg-[#181818] text-white border-[#629F3F] hover:bg-[#232323]'}
+                        ${isUpdatingRole ? 'opacity-50 cursor-not-allowed' : ''}
                       `}
-                      aria-pressed={selectedRole === 'vice'}
-                      onClick={() => setSelectedRole(selectedRole === 'vice' ? null : 'vice')}
+                      aria-pressed={player.role === 'Vice-capitaine'}
+                      onClick={() => !isUpdatingRole && handleRoleUpdate('vice')}
+                      disabled={isUpdatingRole}
                     >
-                     
+                      {isUpdatingRole ? (
+                        <span className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          TRAITEMENT...
+                        </span>
+                      ) : (
                       <span className="truncate">Vice - Capitaine</span>
-                     
+                      )}
                     </button>
                   </div>
                 </div>
@@ -314,6 +435,22 @@ const PlayerModal = ({ player, onClose }) => {
                 </div>
               </div>
             )}
+            
+            {/* Show message for replacement players */}
+            {player.name !== 'ADEM MHIRI' && player.isSubstituted && (
+              <div className="flex flex-col lg:flex-row gap-4 lg:gap-8">
+                <div className="flex-1">
+                  <div className="text-white font-bold uppercase text-sm lg:text-base mb-3 lg:mb-4 text-left" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif', letterSpacing:'0.04em'}}>
+                    INFORMATION
+                  </div>
+                  <div className="bg-[#2a2a2a] border border-[#629F3F] rounded-lg p-4">
+                    <p className="text-white text-sm lg:text-base text-center" style={{fontFamily:'Gotham SSM, Bebas Neue, sans-serif'}}>
+                      Les joueurs en remplacement ne peuvent pas avoir d'actions ou de changements de rôle.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -324,12 +461,15 @@ const PlayerModal = ({ player, onClose }) => {
             setShowReplacementModal(false); 
           }}
           player={player}
+          onRefresh={onRefresh}
         />
       )}
       {showTransfertModal && (
         <TransfertModal
           open={showTransfertModal}
           onClose={() => setShowTransfertModal(false)}
+          player={player}
+          onRefresh={onRefresh}
         />
       )}
     </>
@@ -339,6 +479,7 @@ const PlayerModal = ({ player, onClose }) => {
 PlayerModal.propTypes = {
   player: PropTypes.object,
   onClose: PropTypes.func.isRequired,
+  onRefresh: PropTypes.func,
 };
 
 export default PlayerModal;

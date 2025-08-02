@@ -93,6 +93,7 @@ const FootballFieldFormation = ({
                       match={getPlayerOpponent ? getPlayerOpponent(player) : "VS Opponent"}
                       jerseySrc={player.jersey}
                       onClick={() => handlePlayerClick(row.key)}
+                      role={player.role}
                     />
                   ) : (
                     <div

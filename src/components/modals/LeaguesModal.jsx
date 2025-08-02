@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { ChevronDown, Calendar, X, Settings, Users, Crown, Copy, UserMinus } from 'lucide-react';
+import api from '../../utils/api';
 
 const LeaguesModal = ({ open, onClose }) => {
   const [activeTab, setActiveTab] = useState('ligues');
@@ -21,52 +22,97 @@ const LeaguesModal = ({ open, onClose }) => {
   const [isPrivateLeagueCreated, setIsPrivateLeagueCreated] = useState(false);
   const [showLeagueSettings, setShowLeagueSettings] = useState(false);
   const [showRoomCode, setShowRoomCode] = useState(false);
+  const [myLeagues, setMyLeagues] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [leagueTable, setLeagueTable] = useState([]);
   const modalRef = useRef(null);
   const closeButtonRef = useRef(null);
 
-  // Mock data - only private leagues
-  const myLeagues = [
-    {
-      id: 1,
-      name: 'Ligue des Champions',
-      manager: 'Ahmed Ben Ali',
-      type: 'private',
-      myRank: 3,
-      isAdmin: false,
-      roomCode: 'ABC123',
-      members: [
-        { id: 1, name: 'Mohamed Trabelsi', rank: 1, isAdmin: true },
-        { id: 2, name: 'Ahmed Ben Ali', rank: 3, isAdmin: false },
-        { id: 3, name: 'Sami Khelifi', rank: 2, isAdmin: false },
-        { id: 4, name: 'Youssef Mansouri', rank: 4, isAdmin: false },
-        { id: 5, name: 'Karim Zidane', rank: 5, isAdmin: false }
-      ]
-    },
-    {
-      id: 2,
-      name: 'Ligue Amicale',
-      manager: 'Mohamed Trabelsi',
-      type: 'private',
-      myRank: 1,
-      isAdmin: true,
-      roomCode: 'XYZ789',
-      members: [
-        { id: 1, name: 'Mohamed Trabelsi', rank: 1, isAdmin: true },
-        { id: 2, name: 'Ahmed Ben Ali', rank: 2, isAdmin: false },
-        { id: 3, name: 'Sami Khelifi', rank: 3, isAdmin: false }
-      ]
-    }
-  ];
-
-  const leagueTable = [
-    { place: 1, name: 'Mohamed Trabelsi', journeePts: 45, totalPts: 312 },
-    { place: 2, name: 'Ahmed Ben Ali', journeePts: 38, totalPts: 298 },
-    { place: 3, name: 'Sami Khelifi', journeePts: 42, totalPts: 245 },
-    { place: 4, name: 'Youssef Mansouri', journeePts: 35, totalPts: 234 },
-    { place: 5, name: 'Karim Zidane', journeePts: 28, totalPts: 198 }
-  ];
-
   const gameweeks = Array.from({ length: 30 }, (_, i) => i + 1);
+
+  // Load user's leagues on modal open
+  useEffect(() => {
+    if (open && activeTab === 'ligues') {
+      loadUserLeagues();
+    }
+  }, [open, activeTab]);
+
+  // Load user's leagues from API
+  const loadUserLeagues = async () => {
+    setLoading(true);
+    try {
+      const result = await api.getUserGroups();
+      if (result.success) {
+        const currentUser = api.getUser();
+        console.log('Current user:', currentUser);
+        console.log('API response:', result.data);
+        
+        // Transform API data to match component structure
+        const transformedLeagues = result.data.map(league => {
+          const isAdmin = league.admin?._id === currentUser?._id;
+          console.log(`League ${league.name}: admin=${league.admin?._id}, user=${currentUser?._id}, isAdmin=${isAdmin}`);
+          
+          return {
+            id: league._id,
+            name: league.name,
+            manager: league.admin?.username || 'Unknown',
+            type: 'private',
+            myRank: 1, // This would need to be calculated based on user's position
+            isAdmin: isAdmin,
+            roomCode: league.code,
+            members: league.participants?.map((participant, index) => ({
+              id: participant._id,
+              name: participant.username,
+              rank: index + 1,
+              isAdmin: participant._id === league.admin?._id,
+              points: participant.pointTikiTaka || 0
+            })) || []
+          };
+        });
+        
+        console.log('Transformed leagues:', transformedLeagues);
+        setMyLeagues(transformedLeagues);
+      } else {
+        showError(result.message || 'Failed to load leagues');
+      }
+    } catch (error) {
+      showError('Failed to load leagues');
+      console.error('Error loading leagues:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load league table when a league is selected
+  useEffect(() => {
+    if (selectedLeague) {
+      loadLeagueTable();
+    }
+  }, [selectedLeague]);
+
+  const loadLeagueTable = async () => {
+    try {
+      const result = await api.getGroup(selectedLeague.id);
+      if (result.success) {
+        // Transform participants to table format
+        const tableData = result.data.participants
+          .map((participant, index) => ({
+            place: index + 1,
+            name: participant.username,
+            journeePts: participant.pointTikiTaka || 0,
+            totalPts: participant.pointTikiTaka || 0
+          }))
+          .sort((a, b) => b.totalPts - a.totalPts);
+        
+        setLeagueTable(tableData);
+      } else {
+        showError(result.message || 'Failed to load league table');
+      }
+    } catch (error) {
+      showError('Failed to load league table');
+      console.error('Error loading league table:', error);
+    }
+  };
 
   // Focus management and keyboard navigation
   useEffect(() => {
@@ -113,46 +159,68 @@ const LeaguesModal = ({ open, onClose }) => {
 
   const borderStyle = { border: '0.5px solid #629F3F' };
 
-  const handleCreateLeague = () => {
+  const handleCreateLeague = async () => {
     if (!createFormData.name.trim()) {
       showError('Veuillez entrer un nom pour votre ligue');
       return;
     }
 
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    setPrivateCode(code);
-    setSuccessMessage(`Ta ligue privée a été créée. Code d'invitation: ${code}`);
-    setIsPrivateLeagueCreated(true);
-    
-    setShowCreateModal(false);
-    setShowSuccessModal(true);
-    setCreateFormData({ name: '' });
+    setLoading(true);
+    try {
+      const result = await api.createGroup(createFormData.name);
+      if (result.success) {
+        console.log('League created successfully:', result.data);
+        setSuccessMessage(`Ta ligue privée a été créée. Code d'invitation: ${result.data.code}`);
+        setIsPrivateLeagueCreated(true);
+        setPrivateCode(result.data.code);
+        setShowCreateModal(false);
+        setShowSuccessModal(true);
+        
+        // Refresh leagues to include the new one and ensure admin role is set
+        setTimeout(() => {
+          loadUserLeagues();
+        }, 500);
+      } else {
+        showError(result.message || 'Failed to create league');
+      }
+    } catch (error) {
+      showError('Failed to create league');
+      console.error('Error creating league:', error);
+    } finally {
+      setLoading(false);
+      setCreateFormData({ name: '' });
+    }
   };
 
-  const handleJoinPrivateLeague = () => {
+  const handleJoinPrivateLeague = async () => {
     if (!privateCode.trim()) {
       showError('Veuillez entrer un code d\'invitation');
       return;
     }
 
-    // Simulate validation
-    if (privateCode.length !== 6) {
-      showError('Le code d\'invitation doit contenir 6 caractères');
-      return;
-    }
-
-    // Simulate API call
-    setTimeout(() => {
-      if (privateCode === 'ABC123' || privateCode === 'XYZ789') {
+    setLoading(true);
+    try {
+      const result = await api.joinGroup(privateCode);
+      if (result.success) {
+        console.log('Joined league successfully:', result.data);
         setSuccessMessage('Vous avez rejoint la ligue avec succès!');
         setShowJoinModal(false);
         setShowSuccessModal(true);
         setPrivateCode('');
-        setIsPrivateLeagueCreated(false);
+        
+        // Refresh leagues to include the new one
+        setTimeout(() => {
+          loadUserLeagues();
+        }, 500);
       } else {
-        showError('Code d\'invitation invalide');
+        showError(result.message || 'Failed to join league');
       }
-    }, 1000);
+    } catch (error) {
+      showError('Failed to join league');
+      console.error('Error joining league:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const showError = (message) => {
@@ -170,7 +238,7 @@ const LeaguesModal = ({ open, onClose }) => {
     navigator.clipboard.writeText(text);
   };
 
-  const handleLeaveLeague = (leagueId) => {
+  const handleLeaveLeague = async (leagueId) => {
     setConfirmAction({
       type: 'leave',
       leagueId,
@@ -181,7 +249,7 @@ const LeaguesModal = ({ open, onClose }) => {
     setShowConfirmModal(true);
   };
 
-  const handleRemoveMember = (memberId, memberName) => {
+  const handleRemoveMember = async (memberId, memberName) => {
     setConfirmAction({
       type: 'remove',
       memberId,
@@ -193,7 +261,7 @@ const LeaguesModal = ({ open, onClose }) => {
     setShowConfirmModal(true);
   };
 
-  const handleCloseLeague = (leagueId, leagueName) => {
+  const handleCloseLeague = async (leagueId, leagueName) => {
     setConfirmAction({
       type: 'close',
       leagueId,
@@ -205,20 +273,59 @@ const LeaguesModal = ({ open, onClose }) => {
     setShowConfirmModal(true);
   };
 
-  const confirmActionHandler = () => {
+  const confirmActionHandler = async () => {
     if (confirmAction.type === 'leave') {
-      setSuccessMessage('Vous avez quitté la ligue avec succès');
-      setShowSuccessModal(true);
-      setSelectedLeague(null);
+      setLoading(true);
+      try {
+        const result = await api.leaveGroup(confirmAction.leagueId);
+        if (result.success) {
+          setSuccessMessage('Vous avez quitté la ligue avec succès');
+          loadUserLeagues(); // Refresh leagues to remove the left one
+          setSelectedLeague(null);
+        } else {
+          showError(result.message || 'Failed to leave league');
+        }
+      } catch (error) {
+        showError('Failed to leave league');
+        console.error('Error leaving league:', error);
+      } finally {
+        setLoading(false);
+      }
     } else if (confirmAction.type === 'remove') {
-      setSuccessMessage(`${confirmAction.memberName} a été retiré de la ligue`);
-      setShowSuccessModal(true);
-      setShowLeagueSettings(false);
+      setLoading(true);
+      try {
+        const result = await api.removeParticipant(confirmAction.leagueId, confirmAction.memberId);
+        if (result.success) {
+          setSuccessMessage(`${confirmAction.memberName} a été retiré de la ligue`);
+          loadLeagueTable(); // Refresh table to remove the member
+          setShowLeagueSettings(false);
+        } else {
+          showError(result.message || 'Failed to remove member');
+        }
+      } catch (error) {
+        showError('Failed to remove member');
+        console.error('Error removing member:', error);
+      } finally {
+        setLoading(false);
+      }
     } else if (confirmAction.type === 'close') {
-      setSuccessMessage('La ligue a été fermée avec succès');
-      setShowSuccessModal(true);
-      setSelectedLeague(null);
-      setShowLeagueSettings(false);
+      setLoading(true);
+      try {
+        const result = await api.closeGroup(confirmAction.leagueId);
+        if (result.success) {
+          setSuccessMessage('La ligue a été fermée avec succès');
+          loadUserLeagues(); // Refresh leagues to remove the closed one
+          setSelectedLeague(null);
+          setShowLeagueSettings(false);
+        } else {
+          showError(result.message || 'Failed to close league');
+        }
+      } catch (error) {
+        showError('Failed to close league');
+        console.error('Error closing league:', error);
+      } finally {
+        setLoading(false);
+      }
     }
     setShowConfirmModal(false);
     setConfirmAction(null);
@@ -307,66 +414,76 @@ const LeaguesModal = ({ open, onClose }) => {
                     
                     {/* League Cards */}
                     <div className="space-y-3">
-                      {myLeagues.map((league) => (
-                        <div 
-                          key={league.id} 
-                          className="rounded-lg p-4 cursor-pointer transition-all duration-200 hover:bg-[#232323] hover:scale-[1.02]" 
-                          style={borderStyle}
-                          onClick={() => setSelectedLeague(league)}
-                        >
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex-1">
-                              <h3 className="text-white font-bold text-lg mb-2" style={{ fontFamily: 'Bebas Neue, Gotham SSM, sans-serif' }}>
-                                {league.name}
-                              </h3>
-                              <div className="space-y-1">
-                                <p className="text-gray-300 text-sm">
-                                  Manager: <span className="text-[#629F3F] font-bold">{league.manager}</span>
-                                </p>
-                                <p className="text-[#629F3F] font-bold text-sm">
-                                  Mon Classement: {league.myRank}ème
-                                </p>
+                      {loading ? (
+                        <div className="text-center py-8">
+                          <p className="text-gray-400">Chargement des ligues...</p>
+                        </div>
+                      ) : myLeagues.length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-gray-400">Vous n'avez pas encore de ligue privée. Créez-en une !</p>
+                        </div>
+                      ) : (
+                        myLeagues.map((league) => (
+                          <div 
+                            key={league.id} 
+                            className="rounded-lg p-4 cursor-pointer transition-all duration-200 hover:bg-[#232323] hover:scale-[1.02]" 
+                            style={borderStyle}
+                            onClick={() => setSelectedLeague(league)}
+                          >
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex-1">
+                                <h3 className="text-white font-bold text-lg mb-2" style={{ fontFamily: 'Bebas Neue, Gotham SSM, sans-serif' }}>
+                                  {league.name}
+                                </h3>
+                                <div className="space-y-1">
+                                  <p className="text-gray-300 text-sm">
+                                    Manager: <span className="text-[#629F3F] font-bold">{league.manager}</span>
+                                  </p>
+                                  <p className="text-[#629F3F] font-bold text-sm">
+                                    Mon Classement: {league.myRank}ème
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end gap-2">
+                                {league.isAdmin ? (
+                                  <span className="text-[#629F3F] text-xs font-bold px-3 py-1 rounded-full bg-[#629F3F]/20 border border-[#629F3F] shadow-sm">
+                                    ADMIN
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400 text-xs font-bold px-3 py-1 rounded-full bg-gray-800/50 border border-gray-600">
+                                    MEMBRE
+                                  </span>
+                                )}
                               </div>
                             </div>
-                            <div className="flex flex-col items-end gap-2">
-                              {league.isAdmin ? (
-                                <span className="text-[#629F3F] text-xs font-bold px-3 py-1 rounded-full bg-[#629F3F]/20 border border-[#629F3F] shadow-sm">
-                                  ADMIN
+                            
+                            {/* Action Buttons */}
+                            <div className="flex items-center justify-between pt-3 border-t border-[#2a2a2a]">
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-400 text-xs">
+                                  {league.members.length} membres
                                 </span>
-                              ) : (
-                                <span className="text-gray-400 text-xs font-bold px-3 py-1 rounded-full bg-gray-800/50 border border-gray-600">
-                                  MEMBRE
+                              </div>
+                              {!league.isAdmin && (
+                                <button 
+                                  className="text-red-400 hover:text-red-300 text-sm font-bold transition-colors duration-200 px-3 py-1 rounded hover:bg-red-900/20"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleLeaveLeague(league.id);
+                                  }}
+                                >
+                                  Quitter
+                                </button>
+                              )}
+                              {league.isAdmin && (
+                                <span className="text-[#629F3F] text-xs font-bold px-3 py-1 rounded bg-[#629F3F]/10 border border-[#629F3F]/30">
+                                  Propriétaire
                                 </span>
                               )}
                             </div>
                           </div>
-                          
-                          {/* Action Buttons */}
-                          <div className="flex items-center justify-between pt-3 border-t border-[#2a2a2a]">
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-400 text-xs">
-                                {league.members.length} membres
-                              </span>
-                            </div>
-                            {!league.isAdmin && (
-                              <button 
-                                className="text-red-400 hover:text-red-300 text-sm font-bold transition-colors duration-200 px-3 py-1 rounded hover:bg-red-900/20"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleLeaveLeague(league.id);
-                                }}
-                              >
-                                Quitter
-                              </button>
-                            )}
-                            {league.isAdmin && (
-                              <span className="text-[#629F3F] text-xs font-bold px-3 py-1 rounded bg-[#629F3F]/10 border border-[#629F3F]/30">
-                                Propriétaire
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   </>
                 ) : (
@@ -705,10 +822,11 @@ const LeaguesModal = ({ open, onClose }) => {
                 </p>
               </div>
               <button 
-                className="w-full bg-[#629F3F] hover:bg-[#4a7a2f] text-white font-bold py-3 rounded-lg transition-colors duration-200"
+                className="w-full bg-[#629F3F] hover:bg-[#4a7a2f] text-white font-bold py-3 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleCreateLeague}
+                disabled={loading}
               >
-                Créer la Ligue
+                {loading ? 'Création...' : 'Créer la Ligue'}
               </button>
             </div>
           </div>
@@ -745,10 +863,11 @@ const LeaguesModal = ({ open, onClose }) => {
                       maxLength={6}
                     />
                     <button 
-                      className="w-full bg-[#629F3F] hover:bg-[#4a7a2f] text-white font-bold px-6 py-2 rounded transition-colors duration-200"
+                      className="w-full bg-[#629F3F] hover:bg-[#4a7a2f] text-white font-bold px-6 py-2 rounded transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={handleJoinPrivateLeague}
+                      disabled={loading}
                     >
-                      Rejoindre
+                      {loading ? 'Rejoindre...' : 'Rejoindre'}
                     </button>
                   </div>
                   <p className="text-gray-400 text-xs mt-2">
@@ -828,16 +947,18 @@ const LeaguesModal = ({ open, onClose }) => {
               <p className="text-gray-300 mb-6">{confirmAction?.message}</p>
               <div className="flex gap-3">
                 <button 
-                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors duration-200"
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={() => setShowConfirmModal(false)}
+                  disabled={loading}
                 >
                   {confirmAction?.cancelText || 'Annuler'}
                 </button>
                 <button 
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition-colors duration-200"
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={confirmActionHandler}
+                  disabled={loading}
                 >
-                  {confirmAction?.confirmText || 'Confirmer'}
+                  {loading ? 'En cours...' : (confirmAction?.confirmText || 'Confirmer')}
                 </button>
               </div>
             </div>

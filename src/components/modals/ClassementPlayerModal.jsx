@@ -60,7 +60,7 @@ const ClassementPlayerModal = ({ player, onClose }) => {
       aria-modal="true"
     >
       <div
-className="
+        className="
 bg-[#181818] rounded-t-2xl sm:rounded-2xl shadow-2xl relative border border-[#629F3F]
 w-full sm:max-w-[90vw] md:max-w-[95vw] lg:max-w-[1000px] xl:max-w-[1100px]
 max-h-[95vh] flex flex-col overflow-hidden transition-all duration-300 ease-out
@@ -113,7 +113,7 @@ max-h-[95vh] flex flex-col overflow-hidden transition-all duration-300 ease-out
           className="text-white text-lg sm:text-2xl font-bold text-center mt-3 sm:mt-4 uppercase tracking-wide"
           style={{ fontFamily: 'Bebas Neue, Gotham SSM, sans-serif' }}
         >
-ÉQUIPE TIKI-TAKA        </h3>
+          ÉQUIPE TIKI-TAKA        </h3>
 
         {/* Stadium & Players */}
         <div className="flex-1 w-full overflow-auto pb-4">

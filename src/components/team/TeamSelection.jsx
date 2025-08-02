@@ -6,16 +6,20 @@ import Footer from '../layout/Footer';
 import PartnersSection from '../layout/PartnersSection';
 import FootballFieldFormation from './FootballFieldFormation';
 import api from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
 
 const TeamSelection = () => {
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const [selectedPlayers, setSelectedPlayers] = useState([]);
+  const [substitutePlayers, setSubstitutePlayers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('Tous Les Equipes');
   const [activeFilter, setActiveFilter] = useState('GK'); // Default to GK
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showSubstituteModal, setShowSubstituteModal] = useState(false);
   const modalRef = useRef(null);
   const closeButtonRef = useRef(null);
 
@@ -416,9 +420,35 @@ const TeamSelection = () => {
 
   const handlePlayerRemove = (playerId) => {
     setSelectedPlayers(selectedPlayers.filter(player => player.id !== playerId));
+    // Also remove from substitutes if present
+    setSubstitutePlayers(prev => prev.filter(p => p.id !== playerId));
+  };
+
+  const handleSubstituteSelect = (player) => {
+    // Check if player is already a substitute
+    const isAlreadySubstitute = substitutePlayers.some(p => p.id === player.id);
+    
+    if (isAlreadySubstitute) {
+      // Remove from substitutes
+      setSubstitutePlayers(prev => prev.filter(p => p.id !== player.id));
+    } else {
+      // Add to substitutes (max 4)
+      if (substitutePlayers.length < 4) {
+        setSubstitutePlayers(prev => [...prev, player]);
+      } else {
+        alert('Vous ne pouvez sélectionner que 4 remplaçants maximum.');
+      }
+    }
+  };
+
+  const handleSubstituteRemove = (playerId) => {
+    setSubstitutePlayers(prev => prev.filter(p => p.id !== playerId));
   };
 
   const handleLogout = () => {
+    // Use the logout function from AuthContext which will clear auth data
+    logout();
+    // Redirect to login page
     navigate('/login');
   };
 
@@ -436,10 +466,37 @@ const TeamSelection = () => {
       return;
     }
 
-    // Create 4-4-2 formation with substitutes
-    const formation = create442Formation(selectedPlayers);
+    if (totalPlayers > 15) {
+      alert('Vous ne pouvez sélectionner que 15 joueurs maximum.');
+      return;
+    }
 
-    setShowConfirmModal(true);
+    // Check if we have players from each position for substitutes
+    const gkPlayers = selectedPlayers.filter(p => p.position === 'GK');
+    const defPlayers = selectedPlayers.filter(p => p.position === 'DEF');
+    const midPlayers = selectedPlayers.filter(p => p.position === 'MID');
+    const fwdPlayers = selectedPlayers.filter(p => p.position === 'FWD');
+
+    // For substitutes, we need at least 2 GK, 5 DEF, 5 MID, 3 FWD to have one of each as substitute
+    if (gkPlayers.length < 2) {
+      alert('Vous devez avoir au moins 2 gardiens de but pour pouvoir sélectionner un remplaçant.');
+      return;
+    }
+    if (defPlayers.length < 5) {
+      alert('Vous devez avoir au moins 5 défenseurs pour pouvoir sélectionner un remplaçant.');
+      return;
+    }
+    if (midPlayers.length < 5) {
+      alert('Vous devez avoir au moins 5 milieux de terrain pour pouvoir sélectionner un remplaçant.');
+      return;
+    }
+    if (fwdPlayers.length < 3) {
+      alert('Vous devez avoir au moins 3 attaquants pour pouvoir sélectionner un remplaçant.');
+      return;
+    }
+
+    // Show substitute selection modal (no team creation here)
+    setShowSubstituteModal(true);
   };
 
   // Create 4-4-2 formation with substitutes
@@ -477,17 +534,53 @@ const TeamSelection = () => {
     setIsLoading(true);
     
     try {
-      // Create the final team formation
-      const formation = create442Formation(selectedPlayers);
+      // Validate that we have exactly 4 substitutes (one from each position)
+      if (substitutePlayers.length !== 4) {
+        alert('Vous devez sélectionner exactement 4 remplaçants (1 de chaque poste).');
+        setIsLoading(false);
+        return;
+      }
+
+      // Validate that each position has exactly one substitute
+      const gkSubs = substitutePlayers.filter(p => p.position === 'GK');
+      const defSubs = substitutePlayers.filter(p => p.position === 'DEF');
+      const midSubs = substitutePlayers.filter(p => p.position === 'MID');
+      const fwdSubs = substitutePlayers.filter(p => p.position === 'FWD');
+
+      if (gkSubs.length !== 1 || defSubs.length !== 1 || midSubs.length !== 1 || fwdSubs.length !== 1) {
+        alert('Vous devez sélectionner exactement 1 remplaçant de chaque poste.');
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('Submitting team formation with substitutes:', substitutePlayers);
       
-      console.log('Submitting team formation:', formation);
+      // Prepare players data with substitute information
+      const playersData = selectedPlayers.map(player => ({
+        player: player.id,
+        isSubstituted: substitutePlayers.some(sub => sub.id === player.id),
+        captain: false,
+        vicecaptain: false
+      }));
+
+      // Get current user and round
+      const user = api.getUser();
+      if (!user || !user._id) {
+        alert('Erreur: Utilisateur non connecté. Veuillez vous reconnecter.');
+        setIsLoading(false);
+        return;
+      }
+
+      const currentRound = '1'; // You can get this from API if needed
       
       // Submit team to backend
       const teamData = {
-        players: selectedPlayers.map(p => p.id),
+        userId: user._id,
+        round: currentRound,
+        players: playersData,
         formation: "4-4-2",
-        budget: formation.totalBudget,
-        points: formation.totalPoints
+        budget: getTotalBudget(),
+        points: getTotalPoints()
       };
       
       console.log('Team data being sent to backend:', teamData);
@@ -495,24 +588,35 @@ const TeamSelection = () => {
       // Call API to save team
       const response = await api.createTeam(teamData);
       
-      if (response.success) {
+      console.log('API response:', response);
+      
+      if (response && response.success) {
         console.log('Team created successfully:', response);
         
-        // Show success message
-        if (response.message && response.message.includes('simulated')) {
-          alert('Votre équipe a été créée avec succès! (Mode simulation - backend non disponible)');
-        } else {
-          alert('Votre équipe a été créée avec succès!');
+        // Close modal and navigate immediately - no popups
+        setShowConfirmModal(false);
+        setIsLoading(false);
+        
+        // Navigate to home immediately
+        console.log('Navigating to home page...');
+        try {
+        navigate('/home');
+        } catch (navError) {
+          console.error('Navigation error:', navError);
+          // Fallback: try to reload the page or redirect to root
+          window.location.href = '/home';
         }
-      
-      navigate('/home');
       } else {
-        throw new Error(response.message || 'Erreur lors de la création de l\'équipe');
+        throw new Error(response?.message || 'Erreur lors de la création de l\'équipe');
       }
     } catch (error) {
       console.error('Error creating team:', error);
+      
+      // Only show error for actual failures, not timeouts
       alert('Erreur lors de la création de l\'équipe. Veuillez réessayer.');
+      setIsLoading(false);
     } finally {
+      // Ensure loading is always turned off
       setIsLoading(false);
       setShowConfirmModal(false);
     }
@@ -615,7 +719,7 @@ const TeamSelection = () => {
             >
               <option value="Tous Les Equipes">Tous Les Equipes</option>
                   {teams && teams.map((team) => (
-                    <option key={team._id} value={team.name}>
+                    <option key={String(team._id)} value={team.name}>
                       {team.name}
                     </option>
                   ))}
@@ -874,7 +978,7 @@ const TeamSelection = () => {
               >
                 <option value="Tous Les Equipes">Toutes les équipes</option>
                 {teams && teams.map((team) => (
-                  <option key={team._id} value={team.name}>
+                  <option key={String(team._id)} value={team.name}>
                     {team.name}
                   </option>
                 ))}
@@ -1016,13 +1120,20 @@ const TeamSelection = () => {
                 </div>
                 <div>
                   <div className="text-gray-400 mb-1" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
-                    Remplaçants (4)
+                    Remplaçants ({substitutePlayers.length}/4 positions)
                   </div>
                   <div className="text-white" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
-                    • 1 Gardien<br/>
-                    • 2 Défenseurs<br/>
-                    • 1 Milieu<br/>
-                    • 0 Attaquant
+                    {substitutePlayers.length > 0 ? (
+                      substitutePlayers.map((player, index) => (
+                        <div key={player.id} className="text-xs">
+                          • {player.name} ({player.position === 'GK' ? 'Gardien' : player.position === 'DEF' ? 'Défenseur' : player.position === 'MID' ? 'Milieu' : 'Attaquant'})
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-gray-500 text-xs">
+                        Sélectionnez 1 joueur de chaque poste
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1057,6 +1168,286 @@ const TeamSelection = () => {
                 style={{ fontFamily: 'Gotham SSM, sans-serif' }}
               >
                 {isLoading ? 'CRÉATION...' : 'CONFIRMER'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Substitute Selection Modal
+  const SubstituteModal = ({ isOpen, onClose, onConfirm }) => {
+    if (!isOpen) return null;
+
+    // Group players by position
+    const gkPlayers = selectedPlayers.filter(p => p.position === 'GK');
+    const defPlayers = selectedPlayers.filter(p => p.position === 'DEF');
+    const midPlayers = selectedPlayers.filter(p => p.position === 'MID');
+    const fwdPlayers = selectedPlayers.filter(p => p.position === 'FWD');
+
+    // Get selected substitutes by position
+    const selectedGK = substitutePlayers.find(p => p.position === 'GK');
+    const selectedDEF = substitutePlayers.find(p => p.position === 'DEF');
+    const selectedMID = substitutePlayers.find(p => p.position === 'MID');
+    const selectedFWD = substitutePlayers.find(p => p.position === 'FWD');
+
+    const handlePositionSubstituteSelect = (player) => {
+      // Remove any existing substitute from the same position
+      const newSubstitutes = substitutePlayers.filter(sub => sub.position !== player.position);
+      
+      // Add the new substitute
+      setSubstitutePlayers([...newSubstitutes, player]);
+    };
+
+    const handlePositionSubstituteRemove = (position) => {
+      setSubstitutePlayers(substitutePlayers.filter(sub => sub.position !== position));
+    };
+
+    const isPositionComplete = () => {
+      return selectedGK && selectedDEF && selectedMID && selectedFWD;
+    };
+
+    return (
+      <div 
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm transition-opacity duration-300 ease-out"
+        onClick={(e) => e.target === e.currentTarget && onClose()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="bg-[#181818] rounded-2xl shadow-2xl relative border border-[#629F3F] w-full max-w-4xl mx-4 p-6 max-h-[90vh] overflow-y-auto">
+          <div className="space-y-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-[#629F3F] rounded-full flex items-center justify-center mx-auto mb-4">
+                <Users className="text-white" size={32} />
+              </div>
+              <h3 className="text-white text-xl font-bold mb-2" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                SÉLECTIONNER LES REMPLAÇANTS
+              </h3>
+              <p className="text-gray-400 text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                Sélectionnez 1 joueur de chaque poste pour vos remplaçants
+              </p>
+            </div>
+
+            {/* Position-based Selection */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Goalkeeper */}
+            <div className="bg-[#0F0F0F] rounded-lg p-4">
+              <div className="flex justify-between items-center mb-4">
+                <h4 className="text-white font-semibold" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                    Gardien de But
+                </h4>
+                  <span className={`text-sm ${selectedGK ? 'text-[#629F3F]' : 'text-gray-400'}`} style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                    {selectedGK ? '✓ Sélectionné' : 'Non sélectionné'}
+                </span>
+                </div>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {gkPlayers.map((player) => (
+                    <div
+                      key={player.id}
+                      onClick={() => handlePositionSubstituteSelect(player)}
+                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                        selectedGK?.id === player.id
+                          ? 'bg-[#629F3F]/20 border-[#629F3F]' 
+                          : 'bg-[#1D1D1D] border-[#2A3C2A] hover:border-[#629F3F]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-white font-medium text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                            {player.name}
+                          </div>
+                          <div className="text-gray-400 text-xs" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                            {player.team}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[#629F3F] font-bold text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                            {player.price} VP
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Defender */}
+              <div className="bg-[#0F0F0F] rounded-lg p-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="text-white font-semibold" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                    Défenseur
+                  </h4>
+                  <span className={`text-sm ${selectedDEF ? 'text-[#629F3F]' : 'text-gray-400'}`} style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                    {selectedDEF ? '✓ Sélectionné' : 'Non sélectionné'}
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {defPlayers.map((player) => (
+                    <div
+                      key={player.id}
+                      onClick={() => handlePositionSubstituteSelect(player)}
+                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                        selectedDEF?.id === player.id
+                          ? 'bg-[#629F3F]/20 border-[#629F3F]' 
+                          : 'bg-[#1D1D1D] border-[#2A3C2A] hover:border-[#629F3F]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-white font-medium text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                            {player.name}
+                          </div>
+                          <div className="text-gray-400 text-xs" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                            {player.team}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[#629F3F] font-bold text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                            {player.price} VP
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Midfielder */}
+              <div className="bg-[#0F0F0F] rounded-lg p-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="text-white font-semibold" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                    Milieu de Terrain
+                  </h4>
+                  <span className={`text-sm ${selectedMID ? 'text-[#629F3F]' : 'text-gray-400'}`} style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                    {selectedMID ? '✓ Sélectionné' : 'Non sélectionné'}
+                            </span>
+                          </div>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {midPlayers.map((player) => (
+                    <div
+                      key={player.id}
+                      onClick={() => handlePositionSubstituteSelect(player)}
+                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                        selectedMID?.id === player.id
+                          ? 'bg-[#629F3F]/20 border-[#629F3F]' 
+                          : 'bg-[#1D1D1D] border-[#2A3C2A] hover:border-[#629F3F]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-white font-medium text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                              {player.name}
+                            </div>
+                            <div className="text-gray-400 text-xs" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                              {player.team}
+                            </div>
+                          </div>
+                        <div className="text-right">
+                          <div className="text-[#629F3F] font-bold text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                            {player.price} VP
+                        </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Forward */}
+              <div className="bg-[#0F0F0F] rounded-lg p-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="text-white font-semibold" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                    Attaquant
+                  </h4>
+                  <span className={`text-sm ${selectedFWD ? 'text-[#629F3F]' : 'text-gray-400'}`} style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                    {selectedFWD ? '✓ Sélectionné' : 'Non sélectionné'}
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {fwdPlayers.map((player) => (
+                    <div
+                      key={player.id}
+                      onClick={() => handlePositionSubstituteSelect(player)}
+                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                        selectedFWD?.id === player.id
+                          ? 'bg-[#629F3F]/20 border-[#629F3F]' 
+                          : 'bg-[#1D1D1D] border-[#2A3C2A] hover:border-[#629F3F]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-white font-medium text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                            {player.name}
+                          </div>
+                          <div className="text-gray-400 text-xs" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                            {player.team}
+                          </div>
+                        </div>
+                          <div className="text-right">
+                            <div className="text-[#629F3F] font-bold text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                              {player.price} VP
+                            </div>
+                          </div>
+                          </div>
+                        </div>
+                  ))}
+                      </div>
+                    </div>
+            </div>
+
+            {/* Progress Summary */}
+            <div className="bg-[#0F0F0F] rounded-lg p-4">
+              <div className="flex justify-between items-center">
+                <h4 className="text-white font-semibold" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                  Progression
+                </h4>
+                <span className="text-[#629F3F] text-sm" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                  {substitutePlayers.length}/4 positions
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-2 mt-3">
+                <div className={`text-center p-2 rounded ${selectedGK ? 'bg-[#629F3F]/20 text-[#629F3F]' : 'bg-[#1D1D1D] text-gray-400'}`}>
+                  <div className="text-xs font-bold">GK</div>
+                  <div className="text-xs">{selectedGK ? '✓' : '○'}</div>
+                </div>
+                <div className={`text-center p-2 rounded ${selectedDEF ? 'bg-[#629F3F]/20 text-[#629F3F]' : 'bg-[#1D1D1D] text-gray-400'}`}>
+                  <div className="text-xs font-bold">DEF</div>
+                  <div className="text-xs">{selectedDEF ? '✓' : '○'}</div>
+                </div>
+                <div className={`text-center p-2 rounded ${selectedMID ? 'bg-[#629F3F]/20 text-[#629F3F]' : 'bg-[#1D1D1D] text-gray-400'}`}>
+                  <div className="text-xs font-bold">MID</div>
+                  <div className="text-xs">{selectedMID ? '✓' : '○'}</div>
+                </div>
+                <div className={`text-center p-2 rounded ${selectedFWD ? 'bg-[#629F3F]/20 text-[#629F3F]' : 'bg-[#1D1D1D] text-gray-400'}`}>
+                  <div className="text-xs font-bold">FWD</div>
+                  <div className="text-xs">{selectedFWD ? '✓' : '○'}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex space-x-3 pt-4">
+              <button
+                onClick={onClose}
+                className="flex-1 px-4 py-3 bg-[#1D1D1D] text-white font-semibold rounded-lg hover:bg-[#2A2A2A] transition-colors"
+                style={{ fontFamily: 'Gotham SSM, sans-serif' }}
+              >
+                ANNULER
+              </button>
+              <button
+                onClick={() => {
+                  if (isPositionComplete()) {
+                    onConfirm();
+                  } else {
+                    alert('Vous devez sélectionner 1 joueur de chaque poste pour compléter vos remplaçants.');
+                  }
+                }}
+                disabled={!isPositionComplete()}
+                className="flex-1 px-4 py-3 bg-[#629F3F] text-white font-semibold rounded-lg hover:bg-[#4e7e32] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ fontFamily: 'Gotham SSM, sans-serif' }}
+              >
+                CONFIRMER ({substitutePlayers.length}/4)
               </button>
             </div>
           </div>
@@ -1131,7 +1522,7 @@ const TeamSelection = () => {
             {/* Original Team Stats Section */}
             <section className="relative px-3 py-2 sm:px-4 sm:py-2 md:px-5 lg:px-6 w-full bg-[#141414] border border-[#1D1D1D] mb-6">
               <div className="mx-auto py-1 sm:py-2">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="bg-[#0F0F0F] border border-[#2A3C2A] rounded-md p-4">
                     <div className="flex items-center justify-center space-x-2 mb-2">
                       <Users className="text-[#629F3F]" size={20} />
@@ -1153,6 +1544,18 @@ const TeamSelection = () => {
                     </div>
                     <div className="text-2xl font-bold text-center text-[#629F3F]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
                       {100 - getTotalBudget()} VP
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0F0F0F] border border-[#2A3C2A] rounded-md p-4">
+                    <div className="flex items-center justify-center space-x-2 mb-2">
+                      <UserPlus className="text-[#629F3F]" size={20} />
+                      <span className="text-sm font-semibold text-white" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                        REMPLAÇANTS
+                      </span>
+                    </div>
+                    <div className="text-2xl font-bold text-center text-[#629F3F]" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                      {substitutePlayers.length}/4
                     </div>
                   </div>
                 </div>
@@ -1183,9 +1586,14 @@ const TeamSelection = () => {
                       JOUEURS SÉLECTIONNÉS
                     </span>
                   </div>
-                  <span className="text-[#629F3F] font-bold" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
-                    {selectedPlayers.length}/15
-                  </span>
+                  <div className="text-right">
+                    <span className="text-[#629F3F] font-bold" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                      {selectedPlayers.length}/15
+                    </span>
+                    <div className="text-xs text-gray-400" style={{ fontFamily: 'Gotham SSM, sans-serif' }}>
+                      {substitutePlayers.length}/4 positions
+                    </div>
+                  </div>
                 </div>
                 <button
                   onClick={() => setShowPlayerModal(true)}
@@ -1235,6 +1643,16 @@ const TeamSelection = () => {
         onClose={() => setShowConfirmModal(false)}
         onConfirm={handleFinalConfirm}
         isLoading={isLoading}
+      />
+
+      {/* Substitute Selection Modal */}
+      <SubstituteModal
+        isOpen={showSubstituteModal}
+        onClose={() => setShowSubstituteModal(false)}
+        onConfirm={() => {
+          setShowSubstituteModal(false);
+          setShowConfirmModal(true);
+        }}
       />
 
       {/* Partners Section */}

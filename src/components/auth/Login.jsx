@@ -65,8 +65,16 @@ const Login = () => {
       const result = await login(username.trim(), password);
 
       if (result.success) {
-        // Navigate to team selection
-        navigate('/team-selection');
+        // Check if user has a pickteam
+        const hasPickteam = await api.hasPickteam();
+        
+        if (hasPickteam) {
+          // User has a pickteam, redirect to home
+          navigate('/home');
+        } else {
+          // User doesn't have a pickteam, redirect to team selection
+          navigate('/team-selection');
+        }
       } else {
         // Handle different error cases
         if (result.error === 'User not found') {
@@ -279,12 +287,22 @@ const Login = () => {
         api.setToken(response.token);
         api.setUser(response.user);
         
+        // Check if user has a pickteam
+        const hasPickteam = await api.hasPickteam();
+        
         // Close modal and navigate
         setShowOTPModal(false);
         setOtp("");
         setOtpError("");
         setUnverifiedUser(null);
-        navigate("/team-selection");
+        
+        if (hasPickteam) {
+          // User has a pickteam, redirect to home
+          navigate("/home");
+        } else {
+          // User doesn't have a pickteam, redirect to team selection
+          navigate("/team-selection");
+        }
       } else {
         setOtpError("Code OTP invalide. Veuillez réessayer.");
       }
