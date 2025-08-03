@@ -2,10 +2,10 @@ import React from 'react';
 
 const items = [
   { icon: (<span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#61B12C] text-white font-bold text-sm" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif'}}>C</span>), label: 'CAPITAINE' },
-  { icon: (<span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#61B12C] text-white font-bold text-sm" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif'}}>V</span>), label: 'VICE CAPITAINE' },
-  { icon: (<span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-transparent text-[#61B12C] font-bold text-sm" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif'}}><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" fill="#61B12C"/></svg></span>), label: 'MVP' },
-  { icon: (<span className="inline-flex items-center justify-center w-6 h-6" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif'}}><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 2L2 20h20L12 2z" fill="#F44336"/><text x="12" y="18" textAnchor="middle" fontSize="11" fill="#fff" fontWeight="bold">!</text></svg></span>), label: 'NE JOUERA PAS' },
-  { icon: (<span className="inline-flex items-center justify-center w-6 h-6" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif'}}><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 2L2 20h20L12 2z" fill="#FFC72C"/><text x="12" y="18" textAnchor="middle" fontSize="11" fill="#141414" fontWeight="bold">!</text></svg></span>), label: 'INCERTAIN DE JOUER' },
+  { icon: (<span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white font-bold text-sm" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif'}}>V</span>), label: 'VICE CAPITAINE' },
+  { icon: (<img src="/statuts/mvp.svg" alt="MVP" className="w-6 h-6" />), label: 'MVP' },
+  { icon: (<img src="/statuts/absent.svg" alt="Ne jouera pas" className="w-6 h-6" />), label: 'NE JOUERA PAS' },
+  { icon: (<img src="/statuts/incertain.svg" alt="Incertain de jouer" className="w-6 h-6" />), label: 'INCERTAIN DE JOUER' },
 ];
 
 const LegendSection = ({ showCommentLink, onCommentClick }) => (

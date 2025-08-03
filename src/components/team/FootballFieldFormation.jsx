@@ -94,6 +94,10 @@ const FootballFieldFormation = ({
                       jerseySrc={player.jersey}
                       onClick={() => handlePlayerClick(row.key)}
                       role={player.role}
+                      availabilityStatus={player.availabilityStatus}
+                      mvp={player.mvp}
+                      isInjured={player.isInjured}
+                      redCard={player.redCard}
                     />
                   ) : (
                     <div

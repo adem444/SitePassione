@@ -1,19 +1,24 @@
 import React from 'react';
 
-const matches = [
-  { home: 'EST', homeLogo: '/EST.png', away: 'ESS', awayLogo: '/ESS.png', status: 'A venir' },
-  { home: 'EST', homeLogo: '/EST.png', away: 'ESS', awayLogo: '/ESS.png', status: 'A venir' },
-  { home: 'EST', homeLogo: '/EST.png', away: 'ESS', awayLogo: '/ESS.png', status: 'A venir' },
-  { home: 'EST', homeLogo: '/EST.png', away: 'ESS', awayLogo: '/ESS.png', status: 'A venir' },
-];
-
 const rowBg = [
   'bg-[#181818]',
   'bg-[#111]',
 ];
 
-const MatchsSection = () => (
-  <section className="w-full mt-6 shadow-lg border border-[#353535]" style={{borderRadius:0}}>
+const MatchsSection = ({ fixtures = [], loading = false }) => {
+  // Transform fixtures data to match our UI format
+  const matches = fixtures.map(fixture => ({
+    home: fixture.teamshome?.code || 'Unknown',
+    homeLogo: fixture.teamshome?.logo || '/default-club.png',
+    away: fixture.teamsaway?.code || 'Unknown',
+    awayLogo: fixture.teamsaway?.logo || '/default-club.png',
+    status: fixture.statusshort || 'A venir',
+    date: fixture.date,
+    score: fixture.score
+  }));
+
+  return (
+    <section className="w-full mt-6 shadow-lg border border-[#353535]" style={{borderRadius:0}}>
     <div className="w-full bg-[#629F3F] px-4 py-3" style={{borderRadius:0}}>
       <h2 className="text-white text-xl font-bold tracking-wide uppercase text-center" style={{fontFamily:'Bebas Neue, Gotham SSM, sans-serif'}}>MATCHS DE LA JOURNÉE</h2>
     </div>
@@ -51,6 +56,7 @@ const MatchsSection = () => (
       </table>
     </div>
   </section>
-);
+  );
+};
 
 export default MatchsSection; 

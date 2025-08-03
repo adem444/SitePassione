@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDown, Calendar, X } from 'lucide-react';
+import api from '../../utils/api';
 
-const StatsSection = () => {
+const StatsSection = ({ onRoundChange, pickteamStats = { classement: 0, ptsJournee: 0, totalPts: 0 } }) => {
   const [selectedGameweek, setSelectedGameweek] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
+  const [fixtures, setFixtures] = useState([]);
+  const [loadingFixtures, setLoadingFixtures] = useState(false);
 
   const stats = {
     rankingPosition: 0,
@@ -14,6 +17,47 @@ const StatsSection = () => {
 
   const gameweeks = Array.from({ length: 30 }, (_, i) => i + 1);
   const green = '#629F3F';
+
+  // Fetch fixtures when round changes
+  const fetchFixturesForRound = async (round) => {
+    try {
+      setLoadingFixtures(true);
+      console.log('StatsSection - Fetching fixtures for round:', round);
+      
+      const response = await api.getAllFixtures({ round: round.toString() });
+      console.log('StatsSection - Fixtures response:', response);
+      
+      if (response && response.data) {
+        setFixtures(response.data);
+        console.log('StatsSection - Fixtures loaded:', response.data);
+        
+        // Notify parent component about round change
+        if (onRoundChange && typeof onRoundChange === 'function') {
+          onRoundChange(round, response.data);
+        }
+      } else {
+        console.error('StatsSection - No fixtures data received');
+        setFixtures([]);
+      }
+    } catch (error) {
+      console.error('StatsSection - Error fetching fixtures:', error);
+      setFixtures([]);
+    } finally {
+      setLoadingFixtures(false);
+    }
+  };
+
+  // Handle round selection
+  const handleRoundChange = (newRound) => {
+    setSelectedGameweek(newRound);
+    fetchFixturesForRound(newRound);
+    setModalOpen(false);
+  };
+
+  // Fetch fixtures on component mount
+  useEffect(() => {
+    fetchFixturesForRound(selectedGameweek);
+  }, []);
 
   // Close modal on Escape
   React.useEffect(() => {
@@ -62,7 +106,7 @@ const StatsSection = () => {
                         name="gameweek"
                         value={num}
                         checked={selectedGameweek === num}
-                        onChange={() => setSelectedGameweek(num)}
+                        onChange={() => handleRoundChange(num)}
                         className="appearance-none w-5 h-5 rounded-full border-2 border-gray-400 checked:border-[#629F3F] checked:bg-[#629F3F] focus:outline-none focus:ring-2 focus:ring-[#629F3F] transition-all"
                         style={{ minWidth: 20, minHeight: 20 }}
                         aria-checked={selectedGameweek === num}
@@ -149,10 +193,10 @@ const StatsSection = () => {
           {/* Stats Section - Single line on mobile, responsive on desktop */}
           <div className="flex items-center justify-center space-x-4 sm:space-x-6 lg:space-x-8 xl:space-x-10 text-center w-full ">
             {[
-              { value: stats.rankingPosition, label: 'Classement /J' },
-              { value: stats.weeklyPoints, label: 'Pts journée' },
-              { value: stats.ranking, label: 'Classement' },
-              { value: stats.totalPoints, label: 'Total pts' },
+              { value: pickteamStats.classement || 0, label: 'Classement /J' },
+              { value: pickteamStats.ptsJournee || 0, label: 'Pts journée' },
+              { value: pickteamStats.classement || 0, label: 'Classement' },
+              { value: pickteamStats.totalPts || 0, label: 'Total pts' },
             ].map((item, index) => (
               <div key={index} className="flex flex-col items-center">
                 <div className="text-sm sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold text-white">
@@ -175,6 +219,17 @@ const StatsSection = () => {
       </div>
     </section>
   );
+};
+
+import PropTypes from 'prop-types';
+
+StatsSection.propTypes = {
+  onRoundChange: PropTypes.func,
+  pickteamStats: PropTypes.shape({
+    classement: PropTypes.number,
+    ptsJournee: PropTypes.number,
+    totalPts: PropTypes.number,
+  }),
 };
 
 export default StatsSection;

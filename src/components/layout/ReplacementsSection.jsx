@@ -39,6 +39,10 @@ const ReplacementsSection = ({ substitutes = [], loading = false, layout = "colu
             jerseySrc={p.jerseySrc} 
             onClick={() => setSelectedPlayer(p)}
             role={p.role}
+            availabilityStatus={p.availabilityStatus}
+            mvp={p.mvp}
+            isInjured={p.isInjured}
+            redCard={p.redCard}
           />
         ))}
       </div>
@@ -59,6 +63,10 @@ ReplacementsSection.propTypes = {
       match: PropTypes.string.isRequired,
       jerseySrc: PropTypes.string.isRequired,
       role: PropTypes.string,
+      availabilityStatus: PropTypes.string,
+      mvp: PropTypes.bool,
+      isInjured: PropTypes.bool,
+      redCard: PropTypes.bool,
     })
   ),
   loading: PropTypes.bool,

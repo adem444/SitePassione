@@ -14,6 +14,7 @@ import LegendSection from '../layout/LegendSection';
 import TransfersHistorySection from '../layout/TransfersHistorySection';
 import PartnersSection from '../layout/PartnersSection';
 import Footer from '../layout/Footer';
+
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -23,29 +24,44 @@ const HomePage = () => {
   const [currentPickteam, setCurrentPickteam] = useState(null);
   const [substitutePlayers, setSubstitutePlayers] = useState([]);
   const [loadingPickteam, setLoadingPickteam] = useState(true);
+  const [currentFixtures, setCurrentFixtures] = useState([]);
+  const [currentRound, setCurrentRound] = useState(1);
+  const [pickteamStats, setPickteamStats] = useState({
+    classement: 0,
+    ptsJournee: 0,
+    totalPts: 0
+  });
 
-  // Fetch current pickteam function
-  const fetchPickteam = async () => {
+  // Handle round change
+  const handleRoundChange = async (round, fixtures) => {
+    console.log('HomePage - Round changed to:', round);
+    setCurrentRound(round);
+    setCurrentFixtures(fixtures || []);
+    
+    // Fetch pickteam for the new round
+    await fetchPickteamForRound(round);
+  };
+
+  // Fetch pickteam for specific round
+  const fetchPickteamForRound = async (round) => {
     try {
       setLoadingPickteam(true);
-      const result = await api.getCurrentUserPickteam();
+      console.log('HomePage - Fetching pickteam for round:', round);
+      
+      // Pass the round parameter to fetch pickteam for specific round
+      const result = await api.getCurrentUserPickteam(round.toString());
       
       if (result.success && result.data) {
-
-        
-        // Transform pickteam data to match FieldSection format
+        // Process the pickteam data as before
         const transformedPlayers = result.data.players?.map(playerEntry => {
           const player = playerEntry.player;
           if (!player) return null;
           
-          // Debug: Log the original player data
           console.log('HomePage - Original player data:', { 
             name: player.name, 
             _id: player._id, 
             position: player.position 
           });
-          
-
           
           let mappedPos;
           switch (player.position) {
@@ -63,23 +79,21 @@ const HomePage = () => {
               break;
             default:
               console.warn('Unknown position:', player.position, 'for player:', player.name);
-              mappedPos = 'att'; // Default to attacker
+              mappedPos = 'att';
               break;
           }
           
-
-          
           return {
-            _id: player._id, // Include the original player ID
-            id: player._id, // Also include as 'id' for consistency
+            _id: player._id,
+            id: player._id,
             name: player.name || 'Unknown Player',
-            match: 'VS Opponent', // You can get this from match data
+            match: 'VS Opponent',
             jerseySrc: player.logo || '/jercy1/ess.webp',
             pos: mappedPos,
             club: player.team?.name || 'Unknown',
             clubLogo: player.team?.logo || '/ESS.png',
             status: playerEntry.isSubstituted ? 'Remplaçant' : 'Titulaire',
-            selection: '0%', // You can calculate this
+            selection: '0%',
             age: player.age || 25,
             nationality: player.nationality || 'Tunisien',
             role: playerEntry.captain ? 'Capitaine' : 
@@ -90,37 +104,53 @@ const HomePage = () => {
             isHome: false,
             stats: { atk: false, value: player.points || 0 },
             isSubstituted: playerEntry.isSubstituted,
+            // Availability status fields
+            availabilityStatus: player.availabilityStatus || 'available',
+            availabilityReason: player.availabilityReason || '',
+            mvp: player.mvp || false,
+            isInjured: player.isInjured || false,
+            redCard: player.redCard || false,
           };
         }).filter(Boolean) || [];
         
-        // Debug: Log the transformed players to see if IDs are included
         console.log('HomePage - Transformed players with IDs:', transformedPlayers.map(p => ({ name: p.name, _id: p._id, id: p.id })));
         
-        // Separate substitutes from starters
         const starters = transformedPlayers.filter(player => !player.isSubstituted);
         const substitutes = transformedPlayers.filter(player => player.isSubstituted);
         
-
-        
-
-        
         setCurrentPickteam(starters);
         setSubstitutePlayers(substitutes);
+        
+        // Extract pickteam statistics
+        const stats = {
+          classement: result.data.classement || 0,
+          ptsJournee: result.data.ptsJournee || 0,
+          totalPts: result.data.totalPts || 0
+        };
+        setPickteamStats(stats);
+        console.log('HomePage - Pickteam stats:', stats);
       } else {
-        console.log('No pickteam found or error:', result.message);
+        console.log('HomePage - No pickteam found for round:', round);
         setCurrentPickteam([]);
         setSubstitutePlayers([]);
+        setPickteamStats({ classement: 0, ptsJournee: 0, totalPts: 0 });
       }
     } catch (error) {
-      console.error('Error fetching pickteam:', error);
+      console.error('HomePage - Error fetching pickteam for round:', error);
       setCurrentPickteam([]);
       setSubstitutePlayers([]);
+      setPickteamStats({ classement: 0, ptsJournee: 0, totalPts: 0 });
     } finally {
       setLoadingPickteam(false);
     }
   };
 
-  // Fetch current pickteam on component mount
+  // Fetch current pickteam function
+  const fetchPickteam = async () => {
+    await fetchPickteamForRound(currentRound);
+  };
+
+  // Initial data fetch
   useEffect(() => {
     fetchPickteam();
   }, []);
@@ -137,10 +167,10 @@ const HomePage = () => {
       
       <main className="w-full max-w-[1350px] mx-auto px-2 sm:px-4 md:px-6 flex flex-col gap-[20px]">
         <div className="hidden lg:flex flex-row gap-[20px] w-full">
-          <div className="flex-1 flex flex-col gap-[20px]">
-            <div className="mt-8">
-              <StatsSection />
-            </div>
+                     <div className="flex-1 flex flex-col gap-[20px]">
+             <div className="mt-8">
+               <StatsSection onRoundChange={handleRoundChange} pickteamStats={pickteamStats} />
+             </div>
             <div className="flex flex-row w-full gap-[20px] items-start">
               <div className="flex-1">
                 <FieldSection players={currentPickteam} loading={loadingPickteam} onRefresh={fetchPickteam} />
@@ -149,7 +179,7 @@ const HomePage = () => {
                 <ReplacementsSection substitutes={substitutePlayers} loading={loadingPickteam} />
               </div>
             </div>
-            <LegendSection />
+                         <LegendSection />
             {pointsModalOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in-up">
                 <div className="bg-gradient-to-b from-[#232e1a] to-[#181818] rounded-2xl shadow-2xl w-full max-w-md mx-2 p-0 relative border-2 border-[#61B12C] flex flex-col" style={{ boxShadow: '0 8px 32px 0 rgba(98,177,44,0.18)' }}>
@@ -180,7 +210,7 @@ const HomePage = () => {
               <CarouselSection />
             </div>
             <PointsSection />
-            <MatchsSection />
+            <MatchsSection fixtures={currentFixtures} loading={false} />
             <ClassementRecompenseSection />
           </div>
         </div>
@@ -189,19 +219,19 @@ const HomePage = () => {
           <div className="mt-8">
             <CarouselSection />
           </div>
-          <div className="mt-8">
-            <StatsSection />
-          </div>
+                     <div className="mt-8">
+             <StatsSection onRoundChange={handleRoundChange} pickteamStats={pickteamStats} />
+           </div>
                       <div className="flex flex-col gap-4 w-full">
               <FieldSection players={currentPickteam} loading={loadingPickteam} onRefresh={fetchPickteam} />
               <div className="w-full flex flex-row gap-2">
                 <ReplacementsSection substitutes={substitutePlayers} loading={loadingPickteam} layout="row" />
               </div>
             </div>
-          <LegendSection 
-            showCommentLink={true} 
-            onCommentClick={() => setPointsModalOpen(true)} 
-          />
+                     <LegendSection 
+             showCommentLink={true} 
+             onCommentClick={() => setPointsModalOpen(true)} 
+           />
           {pointsModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in-up">
               <div className="bg-[#181818] rounded-2xl shadow-2xl w-full max-w-md mx-2 p-0 relative animate-fade-in-up border-2 border-[#61B12C]">
@@ -216,7 +246,7 @@ const HomePage = () => {
               </div>
             </div>
           )}
-          <MatchsSection />
+          <MatchsSection fixtures={currentFixtures} loading={false} />
           <TransfersHistorySection />
           <ClassementRecompenseSection />
         </div>

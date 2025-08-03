@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import api from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
 
 const steps = {
   SELECT: 0,
@@ -9,6 +10,13 @@ const steps = {
 };
 
 const TransfertModal = ({ open, onClose, player, onRefresh }) => {
+  // Get user data from auth context
+  const { user } = useAuth();
+  
+  // State for fresh user data
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loadingUser, setLoadingUser] = useState(false);
+  
   // Modal step and selected player state
   const [step, setStep] = useState(steps.SELECT);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -28,12 +36,39 @@ const TransfertModal = ({ open, onClose, player, onRefresh }) => {
     console.log('TransfertModal - Full player object:', JSON.stringify(player, null, 2));
   }
 
-  // Fetch market players when modal opens
+  // Fetch fresh user data and market players when modal opens
   useEffect(() => {
-    if (open && step === steps.SELECT) {
-      fetchMarketPlayers();
+    if (open) {
+      fetchCurrentUser();
+      if (step === steps.SELECT) {
+        fetchMarketPlayers();
+      }
     }
   }, [open, step]);
+
+  // Function to fetch current user data from API
+  const fetchCurrentUser = async () => {
+    try {
+      setLoadingUser(true);
+      console.log('TransfertModal - Fetching current user data...');
+      
+      const response = await api.getMe();
+      console.log('TransfertModal - getMe response:', response);
+      
+      if (response && response.user) {
+        setCurrentUser(response.user);
+        console.log('TransfertModal - Current user data loaded:', response.user);
+      } else {
+        console.error('TransfertModal - No user data received from getMe');
+        setCurrentUser(null);
+      }
+    } catch (error) {
+      console.error('TransfertModal - Error fetching current user:', error);
+      setCurrentUser(null);
+    } finally {
+      setLoadingUser(false);
+    }
+  };
 
   const fetchMarketPlayers = async () => {
     try {
@@ -196,7 +231,13 @@ const TransfertModal = ({ open, onClose, player, onRefresh }) => {
           </div>
           <div className="flex-1 bg-[#181818] border border-[#629F3F] rounded-lg flex flex-col items-center justify-center py-3 min-w-[120px]">
             <span className="text-[#629F3F] text-xs font-bold uppercase">BUDGET</span>
-            <span className="text-white text-lg font-bold">11 VP</span>
+            <span className="text-white text-lg font-bold">
+              {loadingUser ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                `${currentUser?.solde || user?.solde || 0} VP`
+              )}
+            </span>
           </div>
         </div>
         {/* Search/filter */}
@@ -290,7 +331,13 @@ const TransfertModal = ({ open, onClose, player, onRefresh }) => {
           </div>
           <div className="flex-1 bg-[#181818] border border-[#629F3F] rounded-lg flex flex-col items-center justify-center py-3 min-w-[120px]">
             <span className="text-[#629F3F] text-xs font-bold uppercase">BUDGET</span>
-            <span className="text-white text-lg font-bold">5 VP</span>
+            <span className="text-white text-lg font-bold">
+              {loadingUser ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                `${currentUser?.solde || user?.solde || 0} VP`
+              )}
+            </span>
           </div>
         </div>
         {/* Transfer cards */}

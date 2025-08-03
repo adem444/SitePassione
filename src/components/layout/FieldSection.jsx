@@ -180,6 +180,10 @@ const FieldSection = ({ players = defaultPlayers, loading = false, onRefresh }) 
                     jerseySrc={p.jerseySrc}
                     onClick={() => setSelectedPlayer(p)}
                     role={p.role}
+                    availabilityStatus={p.availabilityStatus}
+                    mvp={p.mvp}
+                    isInjured={p.isInjured}
+                    redCard={p.redCard}
                   />
                 </div>
               ))}
@@ -206,6 +210,10 @@ FieldSection.propTypes = {
       jerseySrc: PropTypes.string.isRequired,
       pos: PropTypes.string.isRequired,
       role: PropTypes.string,
+      availabilityStatus: PropTypes.string,
+      mvp: PropTypes.bool,
+      isInjured: PropTypes.bool,
+      redCard: PropTypes.bool,
     })
   ),
   loading: PropTypes.bool,

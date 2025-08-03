@@ -225,6 +225,18 @@ const api = {
       return { matches: [] };
     }
   },
+
+  // Get all fixtures with filters
+  getAllFixtures: async (filters = {}) => {
+    try {
+      const queryParams = new URLSearchParams(filters).toString();
+      const response = await apiRequest(`/fixture?${queryParams}`);
+      return response.json();
+    } catch (error) {
+      console.error('Error fetching fixtures:', error);
+      return { data: [], pagination: {}, status: "error" };
+    }
+  },
   
   // Create team
   createTeam: async (teamData) => {
@@ -312,40 +324,43 @@ const api = {
   },
 
   // Get current user's pickteam
-  getCurrentUserPickteam: async () => {
+  getCurrentUserPickteam: async (round = null) => {
     try {
       const user = getUser();
       if (!user || !user._id) {
         return { success: false, message: 'User not authenticated' };
       }
 
-      // Try to get current round first
-      let response;
-      let roundData;
-      try {
-        response = await apiRequest('/matches/current-round');
-        roundData = await response.json();
-      } catch (error) {
-        console.log('Could not fetch current round, using default');
-        roundData = { round: '1' };
+      // Use provided round or try to get current round
+      let targetRound = round;
+      if (!targetRound) {
+        let response;
+        let roundData;
+        try {
+          response = await apiRequest('/matches/current-round');
+          roundData = await response.json();
+        } catch (error) {
+          console.log('Could not fetch current round, using default');
+          roundData = { round: '1' };
+        }
+        targetRound = roundData?.round || '1'; // Default to round 1
       }
-      const currentRound = roundData?.round || '1'; // Default to round 1
 
-      // Get user's pickteam for current round
+      // Get user's pickteam for specified round
       try {
-        response = await apiRequest(`/pickteam/${user._id}/${currentRound}`);
+        const response = await apiRequest(`/pickteam/${user._id}/${targetRound}`);
         const data = await response.json();
         
         if (response.ok && data.data) {
           return { success: true, data: data.data };
         }
       } catch (error) {
-        console.log('Could not fetch pickteam for current round');
+        console.log(`Could not fetch pickteam for round ${targetRound}`);
       }
 
-      // No pickteam found for current round, try to get any pickteam
+      // No pickteam found for specified round, try to get any pickteam
       try {
-        response = await apiRequest(`/pickteam/user/${user._id}`);
+        const response = await apiRequest(`/pickteam/user/${user._id}`);
         const allData = await response.json();
         
         if (response.ok && allData.data && allData.data.length > 0) {

@@ -9,7 +9,7 @@ function abbreviateName(name) {
 
 const CARD_WIDTH_CLASSES = "w-[52px] min-[350px]:w-[60px] min-[400px]:w-[68px] sm:w-[80px] md:w-[100px] lg:w-[120px] xl:w-[120px] max-w-[120px]";
 
-const PlayerCard = ({ name, match, jerseySrc, onClick, role }) => (
+const PlayerCard = ({ name, match, jerseySrc, onClick, role, availabilityStatus, mvp, isInjured, redCard }) => (
   <div
     className={`relative flex flex-col items-center aspect-[110/120] ${CARD_WIDTH_CLASSES} mx-auto transition-transform duration-200 md:hover:scale-105`}
     onClick={onClick}
@@ -17,13 +17,40 @@ const PlayerCard = ({ name, match, jerseySrc, onClick, role }) => (
   >
     <div className="relative w-full h-full border-2 border-white rounded-md flex items-center justify-center overflow-visible bg-black/30">
       {/* Captain/Vice-captain icons */}
-      {role && (role === 'Capitaine' || role === 'Vice-capitaine') && (
+      {role && (role === 'Capitaine' || role === 'Vice-captain') && (
         <div className="absolute top-1 right-1 z-20">
           <div className={`w-4 h-4 rounded-full flex items-center justify-center text-white font-bold text-xs ${
             role === 'Capitaine' ? 'bg-green-500' : 'bg-blue-500'
           }`}>
             {role === 'Capitaine' ? 'C' : 'V'}
           </div>
+        </div>
+      )}
+
+      {/* Availability status icons */}
+      {availabilityStatus === 'willNotPlay' && (
+        <div className="absolute top-1 left-1 z-20">
+          <img src="/statuts/absent.svg" alt="Ne jouera pas" className="w-4 h-4" />
+        </div>
+      )}
+      {availabilityStatus === 'uncertain' && (
+        <div className="absolute top-1 left-1 z-20">
+          <img src="/statuts/incertain.svg" alt="Incertain de jouer" className="w-4 h-4" />
+        </div>
+      )}
+      {mvp && (
+        <div className="absolute top-1 left-1 z-20">
+          <img src="/statuts/mvp.svg" alt="MVP" className="w-4 h-4" />
+        </div>
+      )}
+      {isInjured && (
+        <div className="absolute top-1 left-1 z-20">
+          <img src="/statuts/absent.svg" alt="Blessé" className="w-4 h-4" />
+        </div>
+      )}
+      {redCard && (
+        <div className="absolute top-1 left-1 z-20">
+          <img src="/statuts/absent.svg" alt="Carton rouge" className="w-4 h-4" />
         </div>
       )}
       
@@ -67,6 +94,10 @@ PlayerCard.propTypes = {
   jerseySrc: PropTypes.string.isRequired,
   onClick: PropTypes.func,
   role: PropTypes.string,
+  availabilityStatus: PropTypes.string,
+  mvp: PropTypes.bool,
+  isInjured: PropTypes.bool,
+  redCard: PropTypes.bool,
 };
 
 export default PlayerCard;
